@@ -61,6 +61,12 @@ const editingDateFullReason = computed(() => {
   return full?.reason || ''
 })
 
+// 判断时间段是否可预约（不在不可用列表中且不是整天休息）
+function isSlotAvailable(slot: string): boolean {
+  if (editingDateFullOff.value) return false
+  return !editingDateUnavailableSlots.value.has(slot)
+}
+
 // 编辑日期的节假日信息
 const editingDateHoliday = computed(() => {
   if (!editingDate.value) return null
@@ -436,16 +442,30 @@ async function toggleFullDayOff() {
   saving.value = true
   try {
     if (editingDateFullOff.value) {
+      // 当前是整天休息，取消整天休息（删除整天休息记录）
       const fullDay = editingDateSchedules.value.find((s: any) => !s.time_slot)
-      if (fullDay) await $fetch(`/api/admin/schedules/${fullDay.id}`, { method: 'DELETE' })
+      if (fullDay) {
+        await $fetch(`/api/admin/schedules/${fullDay.id}`, { method: 'DELETE' })
+      }
     } else {
+      // 当前不是整天休息，设置为整天休息
+      // 先删除该日期的所有时间段记录
+      for (const s of editingDateSchedules.value) {
+        if (s.time_slot) {
+          await $fetch(`/api/admin/schedules/${s.id}`, { method: 'DELETE' })
+        }
+      }
+      // 添加整天休息记录
       await $fetch('/api/admin/schedules', {
         method: 'POST',
         body: { artistId: selectedArtist.value, date: editingDate.value, timeSlot: null, reason: '休息' },
       })
     }
     await loadSchedules()
-  } catch { alert('操作失败') }
+  } catch (e) {
+    console.error('切换整天休息失败:', e)
+    alert('操作失败')
+  }
   saving.value = false
 }
 
@@ -671,13 +691,12 @@ watch(viewYear, () => {
             v-for="(cell, i) in calendarDays"
             :key="i"
             :class="[
-              'relative p-2 min-h-[70px] rounded-lg text-sm transition-all border-2',
-              cell.day === null ? 'border-transparent' : '',
-              cell.isPast && cell.day ? 'bg-gray-50 border-gray-100 cursor-default' : '',
+              'relative p-2 min-h-[70px] rounded-lg text-sm transition-all border',
+              cell.day === null ? 'border-transparent' : 'border-gray-200',
+              cell.isPast && cell.day ? 'bg-gray-50 cursor-default' : '',
               !cell.isPast && cell.day ? 'cursor-pointer' : '',
-              cell.isEditing ? 'border-blue-500 bg-blue-600 text-white' : '',
-              !cell.isEditing && cell.isDragSelected ? 'border-blue-400 bg-blue-100' : '',
-              !cell.isEditing && !cell.isDragSelected ? 'border-transparent' : '',
+              cell.isEditing ? 'border-blue-400 bg-blue-200' : '',
+              !cell.isEditing && cell.isDragSelected ? 'border-blue-300 bg-blue-100' : '',
               cell.isHoliday && !cell.isPast && !cell.isEditing && !cell.isDragSelected ? 'bg-red-50/70' : '',
               cell.isWorkday && !cell.isPast && !cell.isEditing && !cell.isDragSelected ? 'bg-green-50/70' : '',
               cell.isWeekend && !cell.isPast && !cell.isEditing && !cell.isDragSelected && !cell.isHoliday && !cell.isWorkday ? 'bg-amber-50/50' : '',
@@ -692,25 +711,23 @@ watch(viewYear, () => {
                 v-if="cell.day"
                 :class="[
                   'font-medium',
-                  cell.isEditing ? 'text-white' : '',
-                  !cell.isEditing && cell.isPast ? 'text-gray-400' : '',
-                  !cell.isEditing && !cell.isPast ? 'text-gray-700' : '',
-                  !cell.isEditing && cell.isToday ? 'text-pink-500' : '',
-                  !cell.isEditing && cell.isHoliday && !cell.isPast ? 'text-red-500' : '',
-                  !cell.isEditing && cell.isWorkday && !cell.isPast ? 'text-green-600' : '',
-                  !cell.isEditing && cell.isWeekend && !cell.isPast && !cell.isHoliday && !cell.isWorkday ? 'text-amber-600' : '',
+                  cell.isPast ? 'text-gray-400' : 'text-gray-700',
+                  cell.isToday ? 'text-pink-500' : '',
+                  cell.isHoliday && !cell.isPast ? 'text-red-500' : '',
+                  cell.isWorkday && !cell.isPast ? 'text-green-600' : '',
+                  cell.isWeekend && !cell.isPast && !cell.isHoliday && !cell.isWorkday ? 'text-amber-600' : '',
                 ]"
               >
                 {{ cell.day }}
               </span>
               <div class="flex items-center gap-0.5">
-                <span v-if="cell.isHoliday && cell.day && !cell.isPast" :class="['text-[9px]', cell.isEditing ? 'text-red-200' : 'text-red-500']" :title="cell.holidayName">
+                <span v-if="cell.isHoliday && cell.day && !cell.isPast" class="text-[9px] text-red-500" :title="cell.holidayName">
                   假
                 </span>
-                <span v-else-if="cell.isWorkday && cell.day && !cell.isPast" :class="['text-[9px]', cell.isEditing ? 'text-green-200' : 'text-green-600']" title="补班日">
+                <span v-else-if="cell.isWorkday && cell.day && !cell.isPast" class="text-[9px] text-green-600" title="补班日">
                   班
                 </span>
-                <span v-else-if="cell.isWeekend && cell.day && !cell.isPast" :class="['text-[9px]', cell.isEditing ? 'text-amber-200' : 'text-amber-500']">
+                <span v-else-if="cell.isWeekend && cell.day && !cell.isPast" class="text-[9px] text-amber-500">
                   休
                 </span>
               </div>
@@ -723,12 +740,12 @@ watch(viewYear, () => {
             <div v-if="cell.day && !cell.isPast" class="absolute bottom-1 left-1/2 -translate-x-1/2">
               <div
                 v-if="cell.isFullOff"
-                :class="['w-2 h-2 rounded-full', cell.isEditing ? 'bg-red-300' : 'bg-red-400']"
+                class="w-2 h-2 rounded-full bg-red-400"
                 title="整天休息"
               />
               <div
                 v-else-if="cell.hasSchedule"
-                :class="['w-2 h-2 rounded-full', cell.isEditing ? 'bg-green-300' : 'bg-green-400']"
+                class="w-2 h-2 rounded-full bg-green-400"
                 title="已排班"
               />
             </div>
@@ -790,33 +807,28 @@ watch(viewYear, () => {
           </div>
 
           <!-- 时间段 -->
-          <div v-if="!editingDateFullOff">
-            <p class="text-sm font-medium text-gray-700 mb-2">取消不排的时间段：</p>
+          <div>
+            <p class="text-sm font-medium text-gray-700 mb-2">排班时间段：</p>
             <div class="space-y-1 max-h-[300px] overflow-y-auto">
               <div
                 v-for="slot in timeSlots"
                 :key="slot"
-                :class="['flex items-center gap-2 p-2 rounded-lg text-sm transition-colors', editingDateUnavailableSlots.has(slot) ? 'bg-red-50' : 'hover:bg-gray-50']"
+                :class="['flex items-center gap-2 p-2 rounded-lg text-sm transition-colors', isSlotAvailable(slot) ? 'bg-green-50' : 'bg-red-50']"
               >
                 <button
                   :class="[
                     'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
-                    editingDateUnavailableSlots.has(slot) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 hover:border-pink-400',
+                    isSlotAvailable(slot) ? 'bg-green-500 border-green-500 text-white' : 'bg-red-500 border-red-500 text-white',
                   ]"
                   :disabled="saving"
                   @click="toggleTimeSlot(slot)"
                 >
-                  <i v-if="editingDateUnavailableSlots.has(slot)" class="fas fa-check text-[10px]" />
+                  <i class="fas fa-check text-[10px]" />
                 </button>
                 <span class="font-mono text-gray-700 min-w-[45px]">{{ slot }}</span>
-                <input
-                  v-if="editingDateUnavailableSlots.has(slot)"
-                  :value="editingDateSchedules.find((s: any) => s.time_slot === slot)?.reason || ''"
-                  class="flex-1 px-2 py-0.5 border rounded text-xs focus:border-pink-400 outline-none"
-                  placeholder="原因"
-                  @change="updateSlotReason(slot, ($event.target as HTMLInputElement).value)"
-                />
-                <span v-else class="text-xs text-green-600">排班</span>
+                <span :class="['text-xs', isSlotAvailable(slot) ? 'text-green-600' : 'text-red-600']">
+                  {{ isSlotAvailable(slot) ? '可预约' : '不可用' }}
+                </span>
               </div>
             </div>
           </div>
