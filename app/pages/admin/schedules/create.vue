@@ -406,9 +406,9 @@ function onSlotMouseUp() {
 
 async function toggleTimeSlotDirect(slot: string, makeUnavailable: boolean) {
   if (!editingDate.value || !selectedArtist.value) return
-  const isCurrentlyUnavailable = editingDateUnavailableSlots.value.has(slot) || editingDateFullOff.value
+  const isCurrentlyAvailable = isSlotAvailable(slot)
   // 状态已经和目标一致，跳过
-  if (makeUnavailable === isCurrentlyUnavailable) return
+  if (makeUnavailable === !isCurrentlyAvailable) return
 
   saving.value = true
   try {
