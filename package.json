@@ -10,7 +10,7 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@alicloud/dysmsapi20170525": "^3.0.0",
+    "@alicloud/dypnsapi20170525": "^2.0.0",
     "@alicloud/openapi-client": "^0.4.0",
     "@nuxtjs/google-fonts": "^3.2.0",
     "@nuxtjs/tailwindcss": "^6.14.0",
@@ -18,7 +18,6 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.22.3",
     "nuxt": "^4.4.6",
-    "tencentcloud-sdk-nodejs": "^4.0.0",
     "vue": "^3.5.34",
     "vue-router": "^5.0.7"
   }

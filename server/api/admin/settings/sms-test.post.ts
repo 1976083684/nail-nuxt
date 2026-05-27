@@ -1,5 +1,4 @@
-import { queryOne } from '../../../utils/db'
-import { sendSmsCode } from '../../../utils/sms'
+import { sendSmsCode, getSmsConfig } from '../../../utils/sms'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -9,23 +8,23 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: '请输入正确的手机号' })
   }
 
-  // 检查短信是否启用
-  const enabled = await queryOne<any>(
-    "SELECT setting_value FROM sys_site_settings WHERE setting_key = 'sms_enabled'"
-  )
-  if (enabled?.setting_value !== 'true') {
-    return { success: false, message: '短信服务未启用' }
+  // 获取当前配置
+  const config = await getSmsConfig()
+  if (!config) {
+    throw createError({ statusCode: 400, message: '请先配置短信服务' })
   }
 
-  // 生成验证码
-  const code = Math.floor(100000 + Math.random() * 900000).toString()
-
-  // 发送短信
-  const result = await sendSmsCode(phone, code)
+  // 发送短信（验证码由阿里云API自动生成）
+  const result = await sendSmsCode(phone)
 
   return {
-    ...result,
-    // 测试模式下返回验证码
-    ...(result.success ? { code, message: `发送成功，验证码: ${code}` } : {}),
+    success: result.success,
+    message: result.message,
+    response: result.response,
+    config: {
+      provider: config.providerName,
+      signName: config.signName,
+      templateCode: config.templateCode,
+    },
   }
 })

@@ -5,102 +5,102 @@ USE luxe_nail;
 -- 服务项目表
 CREATE TABLE IF NOT EXISTS nail_services (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(50) NOT NULL,
-  price DECIMAL(10,2) NOT NULL,
+  name VARCHAR(50) NOT NULL COMMENT '服务名称',
+  price DECIMAL(10,2) NOT NULL COMMENT '价格',
   duration INT NOT NULL COMMENT '时长(分钟)',
-  description VARCHAR(200) NOT NULL,
-  detail TEXT NOT NULL,
-  icon VARCHAR(50) NOT NULL,
-  sort_order INT DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  description VARCHAR(200) NOT NULL COMMENT '简短描述',
+  detail TEXT NOT NULL COMMENT '详细描述',
+  icon VARCHAR(50) NOT NULL COMMENT '图标class',
+  sort_order INT DEFAULT 0 COMMENT '排序'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务项目表';
 
 -- 服务图片表
 CREATE TABLE IF NOT EXISTS nail_service_images (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  service_id INT NOT NULL,
-  url VARCHAR(500) NOT NULL,
-  sort_order INT DEFAULT 0,
+  service_id INT NOT NULL COMMENT '服务ID',
+  url VARCHAR(500) NOT NULL COMMENT '图片URL',
+  sort_order INT DEFAULT 0 COMMENT '排序',
   FOREIGN KEY (service_id) REFERENCES nail_services(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务图片表';
 
 -- 服务样式参考表
 CREATE TABLE IF NOT EXISTS nail_service_styles (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  service_id INT NOT NULL,
-  image_url VARCHAR(500) NOT NULL,
-  name VARCHAR(50) NOT NULL,
-  description VARCHAR(100) NOT NULL,
-  sort_order INT DEFAULT 0,
+  service_id INT NOT NULL COMMENT '服务ID',
+  image_url VARCHAR(500) NOT NULL COMMENT '样式图片URL',
+  name VARCHAR(50) NOT NULL COMMENT '样式名称',
+  description VARCHAR(100) NOT NULL COMMENT '样式描述',
+  sort_order INT DEFAULT 0 COMMENT '排序',
   FOREIGN KEY (service_id) REFERENCES nail_services(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务样式参考表';
 
 -- 美甲师表
 CREATE TABLE IF NOT EXISTS nail_artists (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(50) NOT NULL,
-  title VARCHAR(50) NOT NULL,
-  rating DECIMAL(2,1) NOT NULL DEFAULT 5.0,
-  experience_years INT NOT NULL DEFAULT 0,
-  specialty VARCHAR(100) NOT NULL,
-  image_url VARCHAR(500) NOT NULL,
-  bio TEXT NOT NULL,
-  sort_order INT DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  name VARCHAR(50) NOT NULL COMMENT '姓名',
+  title VARCHAR(50) NOT NULL COMMENT '职称',
+  rating DECIMAL(2,1) NOT NULL DEFAULT 5.0 COMMENT '评分',
+  experience_years INT NOT NULL DEFAULT 0 COMMENT '从业年限',
+  specialty VARCHAR(100) NOT NULL COMMENT '擅长领域',
+  image_url VARCHAR(500) NOT NULL COMMENT '头像URL',
+  bio TEXT NOT NULL COMMENT '个人简介',
+  sort_order INT DEFAULT 0 COMMENT '排序'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='美甲师表';
 
 -- 美甲师资质表
 CREATE TABLE IF NOT EXISTS nail_artist_certifications (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  artist_id INT NOT NULL,
-  certification_name VARCHAR(100) NOT NULL,
+  artist_id INT NOT NULL COMMENT '美甲师ID',
+  certification_name VARCHAR(100) NOT NULL COMMENT '资质名称',
   FOREIGN KEY (artist_id) REFERENCES nail_artists(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='美甲师资质表';
 
 -- 美甲师作品表
 CREATE TABLE IF NOT EXISTS nail_artist_works (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  artist_id INT NOT NULL,
-  image_url VARCHAR(500) NOT NULL,
+  artist_id INT NOT NULL COMMENT '美甲师ID',
+  image_url VARCHAR(500) NOT NULL COMMENT '作品图片URL',
   description VARCHAR(200) DEFAULT '' COMMENT '作品描述',
-  sort_order INT DEFAULT 0,
+  sort_order INT DEFAULT 0 COMMENT '排序',
   FOREIGN KEY (artist_id) REFERENCES nail_artists(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='美甲师作品表';
 
 -- 画廊作品表
 CREATE TABLE IF NOT EXISTS nail_gallery_items (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  image_url VARCHAR(500) NOT NULL,
-  title VARCHAR(50) NOT NULL,
-  category VARCHAR(50) NOT NULL,
-  sort_order INT DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  image_url VARCHAR(500) NOT NULL COMMENT '图片URL',
+  title VARCHAR(50) NOT NULL COMMENT '作品标题',
+  category VARCHAR(50) NOT NULL COMMENT '分类',
+  sort_order INT DEFAULT 0 COMMENT '排序'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='画廊作品表';
 
 -- 画廊点赞表
 CREATE TABLE IF NOT EXISTS nail_gallery_likes (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  gallery_item_id INT NOT NULL,
-  user_id INT NOT NULL,
+  gallery_item_id INT NOT NULL COMMENT '画廊作品ID',
+  user_id INT NOT NULL COMMENT '用户ID',
   UNIQUE KEY uk_item_user (gallery_item_id, user_id),
   FOREIGN KEY (gallery_item_id) REFERENCES nail_gallery_items(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES sys_users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='画廊点赞表';
 
 -- 预约记录表
 CREATE TABLE IF NOT EXISTS nail_appointments (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  service_id INT NOT NULL,
-  artist_id INT DEFAULT NULL,
-  date DATE NOT NULL,
-  time VARCHAR(10) NOT NULL,
-  customer_name VARCHAR(50) NOT NULL,
-  customer_phone VARCHAR(20) NOT NULL,
-  note VARCHAR(500) DEFAULT '',
-  status ENUM('upcoming','completed','cancelled') DEFAULT 'upcoming',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  user_id INT NOT NULL COMMENT '用户ID',
+  service_id INT NOT NULL COMMENT '服务ID',
+  artist_id INT DEFAULT NULL COMMENT '美甲师ID',
+  date DATE NOT NULL COMMENT '预约日期',
+  time VARCHAR(10) NOT NULL COMMENT '预约时间',
+  customer_name VARCHAR(50) NOT NULL COMMENT '客户姓名',
+  customer_phone VARCHAR(20) NOT NULL COMMENT '客户电话',
+  note VARCHAR(500) DEFAULT '' COMMENT '备注',
+  status ENUM('upcoming','completed','cancelled') DEFAULT 'upcoming' COMMENT '状态: upcoming=待服务, completed=已完成, cancelled=已取消',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   FOREIGN KEY (user_id) REFERENCES sys_users(id) ON DELETE CASCADE,
   FOREIGN KEY (service_id) REFERENCES nail_services(id),
   FOREIGN KEY (artist_id) REFERENCES nail_artists(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预约记录表';
 
 -- ============ 初始数据 ============
 

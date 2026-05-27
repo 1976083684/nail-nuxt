@@ -20,11 +20,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // 从路由路径推导权限 key
   let permKey = to.path === '/admin' ? 'dashboard' : to.path.replace('/admin/', '').replace('/', '.')
 
-  // 检查精确权限，再检查父级权限
+  // 检查精确权限，再检查父级权限（如 schedules.create → schedules）
   if (!hasPermission(permKey)) {
-    // settings 子页面：如果精确 key 没有，检查父级 settings
-    if (permKey.startsWith('settings.')) {
-      if (!hasPermission('settings')) {
+    const dotIndex = permKey.indexOf('.')
+    if (dotIndex > 0) {
+      const parentKey = permKey.substring(0, dotIndex)
+      if (!hasPermission(parentKey)) {
         return navigateTo('/admin')
       }
     } else {

@@ -29,3 +29,34 @@ export async function queryOne<T = any>(sql: string, params?: any[]): Promise<T 
   const rows = await query<T>(sql, params)
   return rows[0] || null
 }
+
+/**
+ * 事务封装
+ */
+export async function transaction<T>(fn: (conn: mysql.PoolConnection) => Promise<T>): Promise<T> {
+  const pool = getPool()
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    const result = await fn(conn)
+    await conn.commit()
+    return result
+  } catch (e) {
+    await conn.rollback()
+    throw e
+  } finally {
+    conn.release()
+  }
+}
+
+/**
+ * 获取站点配置
+ */
+export async function getSettings(): Promise<Record<string, string>> {
+  const rows = await query<{ setting_key: string; setting_value: string }>(
+    'SELECT setting_key, setting_value FROM sys_site_settings'
+  )
+  const map: Record<string, string> = {}
+  for (const r of rows) map[r.setting_key] = r.setting_value
+  return map
+}

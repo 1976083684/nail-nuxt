@@ -33,11 +33,15 @@ export function usePermissions() {
     // 普通管理员检查 permissions map
     const perms = admin.value.permissions
     if (!perms) return false
-    // settings 子权限：检查父级 settings 或具体子权限
-    if (permKey.startsWith('settings.')) {
-      return perms['settings'] === true || perms[permKey] === true
+    // 精确匹配
+    if (perms[permKey] === true) return true
+    // 子权限回退到父级（如 schedules.create → schedules）
+    const dotIndex = permKey.indexOf('.')
+    if (dotIndex > 0) {
+      const parentKey = permKey.substring(0, dotIndex)
+      return perms[parentKey] === true
     }
-    return perms[permKey] === true
+    return false
   }
 
   // 获取当前管理员可见的菜单树

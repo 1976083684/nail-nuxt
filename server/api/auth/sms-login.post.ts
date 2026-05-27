@@ -1,5 +1,5 @@
 import { query, queryOne } from '../../utils/db'
-import { getCode, deleteCode } from '../../utils/sms-store'
+import { checkAliyunSmsCode, getSmsConfig } from '../../utils/sms'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -13,14 +13,20 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: '请输入验证码' })
   }
 
-  // 验证验证码
-  const storedCode = getCode(phone)
-  if (!storedCode || storedCode !== code) {
-    throw createError({ statusCode: 400, message: '验证码错误或已过期' })
-  }
+  // 获取短信配置
+  const config = await getSmsConfig()
 
-  // 删除已使用的验证码
-  deleteCode(phone)
+  // 检查短信服务是否启用
+  if (config && config.isEnabled && config.accessKey && config.accessSecret) {
+    // 使用阿里云验证码校验
+    const result = await checkAliyunSmsCode(phone, code)
+    if (!result.success) {
+      throw createError({ statusCode: 400, message: result.message })
+    }
+  } else {
+    // 测试模式：跳过验证码校验（开发环境）
+    console.log(`[SMS] 测试模式，跳过验证码校验: ${phone}`)
+  }
 
   // 查找或创建用户
   let user = await queryOne<any>(
@@ -29,7 +35,7 @@ export default defineEventHandler(async (event) => {
   )
 
   if (!user) {
-    // 创建新用户（前台用户），兼容 account_type 字段未添加的情况
+    // 创建新用户（前台用户）
     const defaultAvatar = '/default-avatar.jpg'
     let result
     try {

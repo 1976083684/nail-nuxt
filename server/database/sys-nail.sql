@@ -7,24 +7,24 @@ USE luxe_nail;
 CREATE TABLE IF NOT EXISTS sys_users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   account_type ENUM('user', 'admin') DEFAULT 'user' COMMENT '账号类型: user=前台用户, admin=后台管理账号',
-  name VARCHAR(50) NOT NULL DEFAULT '微信用户',
-  avatar_url VARCHAR(500) DEFAULT '',
-  phone VARCHAR(20) DEFAULT '',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  name VARCHAR(50) NOT NULL DEFAULT '微信用户' COMMENT '用户昵称',
+  avatar_url VARCHAR(500) DEFAULT '' COMMENT '头像URL',
+  phone VARCHAR(20) DEFAULT '' COMMENT '手机号',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表（前台用户和后台管理账号）';
 
 -- 管理员表（后台管理账号，与 sys_users 表通过 user_id 关联）
 CREATE TABLE IF NOT EXISTS sys_admins (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT DEFAULT NULL COMMENT '关联 sys_users 表 id（account_type=admin）',
-  username VARCHAR(50) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  name VARCHAR(50) NOT NULL,
-  role ENUM('super_admin','admin') DEFAULT 'admin',
-  permissions TEXT DEFAULT NULL,
-  last_login TIMESTAMP NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  username VARCHAR(50) NOT NULL UNIQUE COMMENT '登录账号',
+  password_hash VARCHAR(255) NOT NULL COMMENT '密码哈希',
+  name VARCHAR(50) NOT NULL COMMENT '管理员姓名',
+  role ENUM('super_admin','admin') DEFAULT 'admin' COMMENT '角色: super_admin=超级管理员, admin=普通管理员',
+  permissions TEXT DEFAULT NULL COMMENT '权限配置JSON',
+  last_login TIMESTAMP NULL COMMENT '最后登录时间',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员表（后台管理账号）';
 
 -- 菜单表（支持二级菜单）
 CREATE TABLE IF NOT EXISTS sys_menus (
@@ -36,28 +36,44 @@ CREATE TABLE IF NOT EXISTS sys_menus (
   route VARCHAR(200) DEFAULT '' COMMENT '路由路径',
   sort_order INT DEFAULT 0 COMMENT '排序',
   is_visible TINYINT(1) DEFAULT 1 COMMENT '是否显示',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   INDEX idx_parent (parent_id),
   INDEX idx_sort (sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜单表（支持二级菜单）';
 
 -- 管理员-菜单关联表
 CREATE TABLE IF NOT EXISTS sys_admin_menus (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  admin_id INT NOT NULL,
-  menu_id INT NOT NULL,
+  admin_id INT NOT NULL COMMENT '管理员ID',
+  menu_id INT NOT NULL COMMENT '菜单ID',
   UNIQUE KEY uk_admin_menu (admin_id, menu_id),
   INDEX idx_admin (admin_id),
   INDEX idx_menu (menu_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员-菜单权限关联表';
 
 -- 站点配置表
 CREATE TABLE IF NOT EXISTS sys_site_settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  setting_key VARCHAR(50) NOT NULL UNIQUE,
-  setting_value TEXT NOT NULL,
-  description VARCHAR(100) DEFAULT ''
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  setting_key VARCHAR(50) NOT NULL UNIQUE COMMENT '配置键',
+  setting_value TEXT NOT NULL COMMENT '配置值',
+  description VARCHAR(100) DEFAULT '' COMMENT '配置说明'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站点配置表（全局设置）';
+
+-- 短信配置表（支持多供应商）
+CREATE TABLE IF NOT EXISTS sys_sms_config (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  provider VARCHAR(20) NOT NULL DEFAULT 'aliyun' COMMENT '供应商: aliyun/tencent/qiniu',
+  provider_name VARCHAR(50) NOT NULL DEFAULT '阿里云' COMMENT '供应商名称',
+  access_key VARCHAR(100) DEFAULT '' COMMENT 'AccessKey ID',
+  access_secret VARCHAR(100) DEFAULT '' COMMENT 'AccessKey Secret',
+  sign_name VARCHAR(50) DEFAULT '' COMMENT '短信签名',
+  template_code VARCHAR(20) DEFAULT '' COMMENT '短信模板CODE',
+  is_enabled TINYINT(1) DEFAULT 0 COMMENT '是否启用',
+  is_default TINYINT(1) DEFAULT 0 COMMENT '是否默认供应商',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_provider (provider)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='短信配置表（支持多供应商）';
 
 -- 站点内容表（首页静态字段）
 CREATE TABLE IF NOT EXISTS sys_site_content (
@@ -66,9 +82,9 @@ CREATE TABLE IF NOT EXISTS sys_site_content (
   content_value TEXT NOT NULL COMMENT '内容值',
   content_group VARCHAR(30) NOT NULL DEFAULT 'general' COMMENT '分组: hero/services/artists/gallery/cta/footer',
   description VARCHAR(100) DEFAULT '' COMMENT '字段说明',
-  sort_order INT DEFAULT 0,
+  sort_order INT DEFAULT 0 COMMENT '排序',
   INDEX idx_group (content_group)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站点内容表（首页静态字段）';
 
 -- ============ 初始数据 ============
 
@@ -89,7 +105,11 @@ INSERT IGNORE INTO sys_menus (id, parent_id, name, perm_key, icon, route, sort_o
 (9, 7,   '短信配置',  'settings.sms',   'fas fa-sms',           '/admin/settings/sms',    2),
 (10, 7,  '菜单管理',  'settings.menus', 'fas fa-bars',           '/admin/settings/menus',  3),
 (11, 7,  '管理员账号','settings.admins','fas fa-user-shield',    '/admin/settings/admins', 4),
-(12, 7,  '内容管理',  'settings.content','fas fa-file-alt',     '/admin/settings/content', 5);
+(12, 7,  '内容管理',  'settings.content','fas fa-file-alt',     '/admin/settings/content', 5),
+(13, NULL, '排班管理', 'schedules',     'fas fa-calendar-alt', '/admin/schedules',      8),
+(14, 13,   '排班总览', 'schedules.overview','fas fa-calendar-day', '/admin/schedules',      1),
+(15, 13,   '新增排班', 'schedules.create', 'fas fa-plus-circle',  '/admin/schedules/create', 2),
+(16, 13,   '排班记录', 'schedules.records','fas fa-list-alt',     '/admin/schedules/records', 3);
 
 -- 默认配置
 INSERT IGNORE INTO sys_site_settings (setting_key, setting_value, description) VALUES
@@ -100,13 +120,14 @@ INSERT IGNORE INTO sys_site_settings (setting_key, setting_value, description) V
 ('business_hours_end', '19:00', '营业结束时间'),
 ('slot_duration', '30', '时间段间隔（分钟）'),
 ('booking_fee', '5', '预约费用（元）'),
-('cancel_hours', '6', '预约时间N小时内不可取消'),
-('sms_enabled', 'false', '是否启用短信服务'),
-('sms_provider', 'aliyun', '短信供应商: aliyun/tencent/qiniu'),
-('sms_access_key', '', '短信 AccessKey ID'),
-('sms_access_secret', '', '短信 AccessKey Secret'),
-('sms_sign_name', '', '短信签名'),
-('sms_template_code', '', '短信模板代码');
+('cancel_hours', '6', '预约时间N小时内不可取消');
+
+-- 默认短信配置（阿里云）
+INSERT IGNORE INTO sys_sms_config (provider, provider_name, sign_name, template_code, is_default) VALUES
+('aliyun', '阿里云', '速通互联验证码', '100001', 1);
+-- 腾讯云（暂未接入）
+INSERT IGNORE INTO sys_sms_config (provider, provider_name, sign_name, template_code, is_default) VALUES
+('tencent', '腾讯云', '', '', 0);
 
 -- 首页静态内容
 INSERT IGNORE INTO sys_site_content (content_key, content_value, content_group, description, sort_order) VALUES

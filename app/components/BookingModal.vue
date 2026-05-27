@@ -36,19 +36,26 @@ watch(showBooking, (val) => {
 // 日期时间选择
 const availability = ref<any[]>([])
 
-watch(() => bookingState.value.date, async (date) => {
-  if (date) {
-    const ds = dateToString(date)
-    const artistId = bookingState.value.artistId || 0
-    try {
-      availability.value = await $fetch('/api/availability', {
-        query: { date: ds, artistId },
-      })
-    } catch {
-      availability.value = TIME_SLOTS.map(t => ({ time: t, available: true }))
-    }
+// 获取可用时间段（日期、美甲师、服务变化时重新获取）
+async function fetchAvailability() {
+  const date = bookingState.value.date
+  if (!date) return
+  const ds = dateToString(date)
+  const artistId = bookingState.value.artistId || 0
+  const serviceId = bookingState.value.serviceId || 0
+  try {
+    availability.value = await $fetch('/api/availability', {
+      query: { date: ds, artistId, serviceId },
+    })
+  } catch {
+    availability.value = TIME_SLOTS.map(t => ({ time: t, available: true }))
   }
-})
+}
+
+watch(
+  [() => bookingState.value.date, () => bookingState.value.artistId],
+  () => { fetchAvailability() }
+)
 
 function selectDate(y: number, m: number, d: number) {
   bookingState.value.date = new Date(y, m, d)
