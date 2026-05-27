@@ -28,6 +28,9 @@ const editingDate = ref<string | null>(null)
 const tempScheduleSettings = ref<Record<string, { isFullOff: boolean; reason: string; unavailableSlots: string[] }>>({})
 // 双击计时器
 const clickTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+// 时间段拖拽批量操作
+const slotDragging = ref(false)
+const slotDragTarget = ref<boolean | null>(null)
 
 // 已有排班数据
 const schedules = ref<any[]>([])
@@ -363,6 +366,72 @@ function selectThisMonth() {
   }
 }
 
+function selectNextMonth() {
+  let nextYear = viewYear.value
+  let nextMonth = viewMonth.value + 1
+  if (nextMonth > 11) { nextMonth = 0; nextYear++ }
+  const daysInMonth = new Date(nextYear, nextMonth + 1, 0).getDate()
+  const dates: string[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    if (!shouldExcludeDate(dateStr)) {
+      dates.push(dateStr)
+    }
+  }
+  dragSelectedDates.value = dates
+  if (dates.length > 0) {
+    dragStartDate.value = dates[0]
+    dragEndDate.value = dates[dates.length - 1]
+  }
+}
+
+// 时间段拖拽批量操作
+function onSlotMouseDown(slot: string) {
+  if (saving.value) return
+  slotDragging.value = true
+  // 目标状态：如果当前可用，则拖拽设为不可用；反之亦然
+  slotDragTarget.value = !isSlotAvailable(slot)
+  toggleTimeSlotDirect(slot, slotDragTarget.value)
+}
+
+function onSlotMouseEnter(slot: string) {
+  if (!slotDragging.value || saving.value) return
+  toggleTimeSlotDirect(slot, slotDragTarget.value!)
+}
+
+function onSlotMouseUp() {
+  slotDragging.value = false
+  slotDragTarget.value = null
+}
+
+async function toggleTimeSlotDirect(slot: string, makeUnavailable: boolean) {
+  if (!editingDate.value || !selectedArtist.value) return
+  const isCurrentlyUnavailable = editingDateUnavailableSlots.value.has(slot) || editingDateFullOff.value
+  // 状态已经和目标一致，跳过
+  if (makeUnavailable === isCurrentlyUnavailable) return
+
+  saving.value = true
+  try {
+    // 如果有整天休息记录，先删除
+    if (editingDateFullOff.value) {
+      const fullDay = editingDateSchedules.value.find((s: any) => !s.time_slot)
+      if (fullDay) await $fetch(`/api/admin/schedules/${fullDay.id}`, { method: 'DELETE' })
+    }
+
+    if (makeUnavailable) {
+      await $fetch('/api/admin/schedules', {
+        method: 'POST',
+        body: { artistId: selectedArtist.value, date: editingDate.value, timeSlot: slot, reason: '' },
+      })
+    } else {
+      const entry = editingDateSchedules.value.find((s: any) => s.time_slot === slot)
+      if (entry) await $fetch(`/api/admin/schedules/${entry.id}`, { method: 'DELETE' })
+    }
+    await loadSchedules()
+  } catch { alert('操作失败') }
+  saving.value = false
+}
+
 function clearSelection() {
   resetAllStates()
 }
@@ -500,6 +569,7 @@ function handleGlobalClick(e: MouseEvent) {
 
 function handleGlobalMouseUp() {
   if (isDragging.value) onDateMouseUp()
+  if (slotDragging.value) onSlotMouseUp()
 }
 
 onMounted(async () => {
@@ -590,6 +660,9 @@ watch(viewYear, () => {
           </button>
           <button class="px-3 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600" @click="selectThisMonth">
             <i class="fas fa-calendar mr-1" />排本月
+          </button>
+          <button class="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600" @click="selectNextMonth">
+            <i class="fas fa-calendar-plus mr-1" />排下月
           </button>
         </div>
 
@@ -743,23 +816,28 @@ watch(viewYear, () => {
 
           <!-- 时间段 -->
           <div>
-            <p class="text-sm font-medium text-gray-700 mb-2">排班时间段：</p>
-            <div class="space-y-1 max-h-[300px] overflow-y-auto">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-sm font-medium text-gray-700">排班时间段：</p>
+              <span class="text-[10px] text-gray-400">鼠标滑动可批量操作</span>
+            </div>
+            <div class="space-y-1 max-h-[300px] overflow-y-auto select-none">
               <div
                 v-for="slot in timeSlots"
                 :key="slot"
-                :class="['flex items-center gap-2 p-2 rounded-lg text-sm transition-colors', isSlotAvailable(slot) ? 'bg-green-50' : 'bg-red-50']"
+                :class="['flex items-center gap-2 p-2 rounded-lg text-sm transition-colors cursor-pointer', isSlotAvailable(slot) ? 'bg-green-50' : 'bg-red-50']"
+                @mousedown.prevent="onSlotMouseDown(slot)"
+                @mouseenter="onSlotMouseEnter(slot)"
+                @mouseup="onSlotMouseUp"
               >
-                <button
+                <div
                   :class="[
                     'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
                     isSlotAvailable(slot) ? 'bg-green-500 border-green-500 text-white' : 'bg-red-500 border-red-500 text-white',
                   ]"
-                  :disabled="saving"
-                  @click="toggleTimeSlot(slot)"
                 >
-                  <i class="fas fa-check text-[10px]" />
-                </button>
+                  <i v-if="isSlotAvailable(slot)" class="fas fa-check text-[10px]" />
+                  <i v-else class="fas fa-times text-[10px]" />
+                </div>
                 <span class="font-mono text-gray-700 min-w-[45px]">{{ slot }}</span>
                 <span :class="['text-xs', isSlotAvailable(slot) ? 'text-green-600' : 'text-red-600']">
                   {{ isSlotAvailable(slot) ? '可预约' : '不可用' }}
