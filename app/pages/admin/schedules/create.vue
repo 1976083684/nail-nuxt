@@ -675,12 +675,12 @@ watch(viewYear, () => {
               cell.day === null ? 'border-transparent' : '',
               cell.isPast && cell.day ? 'bg-gray-50 border-gray-100 cursor-default' : '',
               !cell.isPast && cell.day ? 'cursor-pointer' : '',
-              cell.isDragSelected ? 'border-blue-400 bg-blue-50' : 'border-gray-100',
-              cell.isEditing ? 'border-pink-500 bg-pink-50' : '',
-              cell.isToday ? 'ring-1 ring-pink-300' : '',
-              cell.isHoliday && !cell.isPast ? 'bg-red-50/70' : '',
-              cell.isWorkday && !cell.isPast ? 'bg-green-50/70' : '',
-              cell.isWeekend && !cell.isPast && !cell.isDragSelected && !cell.isEditing && !cell.isHoliday && !cell.isWorkday ? 'bg-amber-50/50' : '',
+              cell.isEditing ? 'border-blue-500 bg-blue-600 text-white' : '',
+              !cell.isEditing && cell.isDragSelected ? 'border-blue-400 bg-blue-100' : '',
+              !cell.isEditing && !cell.isDragSelected ? 'border-transparent' : '',
+              cell.isHoliday && !cell.isPast && !cell.isEditing && !cell.isDragSelected ? 'bg-red-50/70' : '',
+              cell.isWorkday && !cell.isPast && !cell.isEditing && !cell.isDragSelected ? 'bg-green-50/70' : '',
+              cell.isWeekend && !cell.isPast && !cell.isEditing && !cell.isDragSelected && !cell.isHoliday && !cell.isWorkday ? 'bg-amber-50/50' : '',
             ]"
             @click="cell.day && cell.dateStr && handleDateClick(cell.dateStr, cell.isPast, $event)"
             @dblclick="cell.day && cell.dateStr && dblClickDate(cell.dateStr, cell.isPast)"
@@ -692,23 +692,25 @@ watch(viewYear, () => {
                 v-if="cell.day"
                 :class="[
                   'font-medium',
-                  cell.isPast ? 'text-gray-400' : 'text-gray-700',
-                  cell.isToday ? 'text-pink-500' : '',
-                  cell.isHoliday && !cell.isPast ? 'text-red-500' : '',
-                  cell.isWorkday && !cell.isPast ? 'text-green-600' : '',
-                  cell.isWeekend && !cell.isPast && !cell.isHoliday && !cell.isWorkday ? 'text-amber-600' : '',
+                  cell.isEditing ? 'text-white' : '',
+                  !cell.isEditing && cell.isPast ? 'text-gray-400' : '',
+                  !cell.isEditing && !cell.isPast ? 'text-gray-700' : '',
+                  !cell.isEditing && cell.isToday ? 'text-pink-500' : '',
+                  !cell.isEditing && cell.isHoliday && !cell.isPast ? 'text-red-500' : '',
+                  !cell.isEditing && cell.isWorkday && !cell.isPast ? 'text-green-600' : '',
+                  !cell.isEditing && cell.isWeekend && !cell.isPast && !cell.isHoliday && !cell.isWorkday ? 'text-amber-600' : '',
                 ]"
               >
                 {{ cell.day }}
               </span>
               <div class="flex items-center gap-0.5">
-                <span v-if="cell.isHoliday && cell.day && !cell.isPast" class="text-[9px] text-red-500" :title="cell.holidayName">
+                <span v-if="cell.isHoliday && cell.day && !cell.isPast" :class="['text-[9px]', cell.isEditing ? 'text-red-200' : 'text-red-500']" :title="cell.holidayName">
                   假
                 </span>
-                <span v-else-if="cell.isWorkday && cell.day && !cell.isPast" class="text-[9px] text-green-600" title="补班日">
+                <span v-else-if="cell.isWorkday && cell.day && !cell.isPast" :class="['text-[9px]', cell.isEditing ? 'text-green-200' : 'text-green-600']" title="补班日">
                   班
                 </span>
-                <span v-else-if="cell.isWeekend && cell.day && !cell.isPast" class="text-[9px] text-amber-500">
+                <span v-else-if="cell.isWeekend && cell.day && !cell.isPast" :class="['text-[9px]', cell.isEditing ? 'text-amber-200' : 'text-amber-500']">
                   休
                 </span>
               </div>
@@ -721,12 +723,12 @@ watch(viewYear, () => {
             <div v-if="cell.day && !cell.isPast" class="absolute bottom-1 left-1/2 -translate-x-1/2">
               <div
                 v-if="cell.isFullOff"
-                class="w-2 h-2 rounded-full bg-red-400"
+                :class="['w-2 h-2 rounded-full', cell.isEditing ? 'bg-red-300' : 'bg-red-400']"
                 title="整天休息"
               />
               <div
                 v-else-if="cell.hasSchedule"
-                class="w-2 h-2 rounded-full bg-green-400"
+                :class="['w-2 h-2 rounded-full', cell.isEditing ? 'bg-green-300' : 'bg-green-400']"
                 title="已排班"
               />
             </div>
