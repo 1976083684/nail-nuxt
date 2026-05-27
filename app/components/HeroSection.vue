@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { openBooking } = useModal()
+const { resetBooking } = useBooking()
 const { get } = useSiteContent()
 
 const particles = Array.from({ length: 12 }, (_, i) => ({
@@ -56,7 +57,7 @@ const particles = Array.from({ length: 12 }, (_, i) => ({
       <div class="flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-4">
         <button
           class="btn-primary text-sm md:text-base w-full sm:w-auto px-8 py-3.5 md:px-10 md:py-4 flex items-center justify-center gap-2"
-          @click="openBooking()"
+          @click="resetBooking(); openBooking()"
         >
           <i class="fa-solid fa-wand-magic-sparkles" /> 预约美甲服务
         </button>

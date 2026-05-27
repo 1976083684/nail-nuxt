@@ -436,57 +436,17 @@ function handleDateClick(dateStr: string, isPast: boolean, event: MouseEvent) {
   }
 }
 
-// 切换整天休息
-async function toggleFullDayOff() {
-  if (!editingDate.value || !selectedArtist.value) return
-  saving.value = true
-  try {
-    if (editingDateFullOff.value) {
-      // 当前是整天休息，取消整天休息（删除整天休息记录）
-      const fullDay = editingDateSchedules.value.find((s: any) => !s.time_slot)
-      if (fullDay) {
-        await $fetch(`/api/admin/schedules/${fullDay.id}`, { method: 'DELETE' })
-      }
-    } else {
-      // 当前不是整天休息，设置为整天休息
-      // 先删除该日期的所有时间段记录
-      for (const s of editingDateSchedules.value) {
-        if (s.time_slot) {
-          await $fetch(`/api/admin/schedules/${s.id}`, { method: 'DELETE' })
-        }
-      }
-      // 添加整天休息记录
-      await $fetch('/api/admin/schedules', {
-        method: 'POST',
-        body: { artistId: selectedArtist.value, date: editingDate.value, timeSlot: null, reason: '休息' },
-      })
-    }
-    await loadSchedules()
-  } catch (e) {
-    console.error('切换整天休息失败:', e)
-    alert('操作失败')
-  }
-  saving.value = false
-}
-
-// 更新整天休息原因
-async function updateFullDayReason(reason: string) {
-  if (!editingDate.value || !selectedArtist.value) return
-  const fullDay = editingDateSchedules.value.find((s: any) => !s.time_slot)
-  if (fullDay) {
-    await $fetch('/api/admin/schedules', {
-      method: 'POST',
-      body: { artistId: selectedArtist.value, date: editingDate.value, timeSlot: null, reason },
-    })
-    await loadSchedules()
-  }
-}
-
 // 切换时间段
 async function toggleTimeSlot(slot: string) {
   if (!editingDate.value || !selectedArtist.value) return
   saving.value = true
   try {
+    // 如果有整天休息记录，先删除
+    if (editingDateFullOff.value) {
+      const fullDay = editingDateSchedules.value.find((s: any) => !s.time_slot)
+      if (fullDay) await $fetch(`/api/admin/schedules/${fullDay.id}`, { method: 'DELETE' })
+    }
+
     if (editingDateUnavailableSlots.value.has(slot)) {
       const entry = editingDateSchedules.value.find((s: any) => s.time_slot === slot)
       if (entry) await $fetch(`/api/admin/schedules/${entry.id}`, { method: 'DELETE' })
@@ -695,9 +655,9 @@ watch(viewYear, () => {
               cell.day === null ? 'border-transparent' : 'border-gray-200',
               cell.isPast && cell.day ? 'bg-gray-50 cursor-default' : '',
               !cell.isPast && cell.day ? 'cursor-pointer' : '',
-              cell.isEditing ? 'border-blue-400 bg-blue-200' : '',
+              cell.isEditing ? 'border-blue-400 bg-blue-300' : '',
               !cell.isEditing && cell.isDragSelected ? 'border-blue-300 bg-blue-100' : '',
-              cell.isHoliday && !cell.isPast && !cell.isEditing && !cell.isDragSelected ? 'bg-red-50/70' : '',
+              cell.isHoliday && !cell.isPast && !cell.isEditing && !cell.isDragSelected ? 'bg-amber-50' : '',
               cell.isWorkday && !cell.isPast && !cell.isEditing && !cell.isDragSelected ? 'bg-green-50/70' : '',
               cell.isWeekend && !cell.isPast && !cell.isEditing && !cell.isDragSelected && !cell.isHoliday && !cell.isWorkday ? 'bg-amber-50/50' : '',
             ]"
@@ -713,7 +673,7 @@ watch(viewYear, () => {
                   'font-medium',
                   cell.isPast ? 'text-gray-400' : 'text-gray-700',
                   cell.isToday ? 'text-pink-500' : '',
-                  cell.isHoliday && !cell.isPast ? 'text-red-500' : '',
+                  cell.isHoliday && !cell.isPast ? 'text-amber-600' : '',
                   cell.isWorkday && !cell.isPast ? 'text-green-600' : '',
                   cell.isWeekend && !cell.isPast && !cell.isHoliday && !cell.isWorkday ? 'text-amber-600' : '',
                 ]"
@@ -721,7 +681,7 @@ watch(viewYear, () => {
                 {{ cell.day }}
               </span>
               <div class="flex items-center gap-0.5">
-                <span v-if="cell.isHoliday && cell.day && !cell.isPast" class="text-[9px] text-red-500" :title="cell.holidayName">
+                <span v-if="cell.isHoliday && cell.day && !cell.isPast" class="text-[9px] text-amber-600" :title="cell.holidayName">
                   假
                 </span>
                 <span v-else-if="cell.isWorkday && cell.day && !cell.isPast" class="text-[9px] text-green-600" title="补班日">
@@ -733,7 +693,7 @@ watch(viewYear, () => {
               </div>
             </div>
             <!-- 节假日名称 -->
-            <div v-if="cell.holidayName && cell.day && !cell.isPast" class="text-[10px] text-red-400 truncate mt-0.5">
+            <div v-if="cell.holidayName && cell.day && !cell.isPast" class="text-[10px] text-amber-500 truncate mt-0.5">
               {{ cell.holidayName }}
             </div>
             <!-- 状态点 -->
@@ -755,9 +715,8 @@ watch(viewYear, () => {
         <!-- 图例 -->
         <div class="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500">
           <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-400" />已排班</div>
-          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-red-400" />整天休息</div>
           <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-blue-400 border border-blue-500" />选中</div>
-          <div class="flex items-center gap-1"><span class="text-red-500 text-[10px]">假</span>节假日</div>
+          <div class="flex items-center gap-1"><span class="text-amber-600 text-[10px]">假</span>节假日</div>
           <div class="flex items-center gap-1"><span class="text-green-600 text-[10px]">班</span>补班日</div>
           <div class="flex items-center gap-1"><span class="text-amber-600 text-[10px]">休</span>周末</div>
         </div>
@@ -771,7 +730,7 @@ watch(viewYear, () => {
           </h3>
 
           <!-- 节假日/补班日信息 -->
-          <div v-if="editingDateHoliday" class="mb-3 px-3 py-2 rounded-lg text-xs" :class="editingDateHoliday.isWorkday ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'">
+          <div v-if="editingDateHoliday" class="mb-3 px-3 py-2 rounded-lg text-xs" :class="editingDateHoliday.isWorkday ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'">
             <i :class="editingDateHoliday.isWorkday ? 'fas fa-briefcase' : 'fas fa-umbrella-beach'" class="mr-1" />
             {{ editingDateHoliday.name }}{{ editingDateHoliday.isWorkday ? '（补班日，正常排班）' : '（节假日）' }}
           </div>
@@ -782,32 +741,7 @@ watch(viewYear, () => {
             默认排班时间：{{ businessStart }} - {{ businessEnd }}
           </div>
 
-          <!-- 整天休息 -->
-          <div class="mb-4 p-3 rounded-lg border" :class="editingDateFullOff ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-medium" :class="editingDateFullOff ? 'text-red-700' : 'text-gray-700'">
-                <i :class="editingDateFullOff ? 'fas fa-moon text-red-500' : 'fas fa-sun text-yellow-500'" class="mr-1" />
-                整天休息
-              </span>
-              <button
-                :class="['relative w-10 h-5 rounded-full transition-colors', editingDateFullOff ? 'bg-red-500' : 'bg-gray-300']"
-                :disabled="saving"
-                @click="toggleFullDayOff"
-              >
-                <span :class="['absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform', editingDateFullOff ? 'left-5' : 'left-0.5']" />
-              </button>
-            </div>
-            <input
-              v-if="editingDateFullOff"
-              :value="editingDateFullReason"
-              class="w-full px-2 py-1 border rounded text-xs focus:border-pink-400 outline-none"
-              placeholder="休息原因"
-              @change="updateFullDayReason(($event.target as HTMLInputElement).value)"
-            />
-          </div>
-
           <!-- 时间段 -->
-          <div>
             <p class="text-sm font-medium text-gray-700 mb-2">排班时间段：</p>
             <div class="space-y-1 max-h-[300px] overflow-y-auto">
               <div
@@ -838,7 +772,7 @@ watch(viewYear, () => {
           <div class="text-center py-10 text-gray-400">
             <i class="fas fa-hand-pointer text-4xl mb-3" />
             <p class="text-sm">点击日期查看排班详情</p>
-            <p class="text-xs mt-1">可取消某些时段不排班</p>
+            <p class="text-xs mt-1">勾选/取消时间段控制可预约状态</p>
             <div class="mt-4 text-xs text-left text-gray-500 space-y-1">
               <p><i class="fas fa-info-circle text-blue-400 mr-1" />单击日期：查看详情</p>
               <p><i class="fas fa-info-circle text-purple-400 mr-1" />双击日期：取消选中</p>

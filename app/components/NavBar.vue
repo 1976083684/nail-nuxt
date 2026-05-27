@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { currentUser, logout } = useAuth()
 const { openLogin, openBooking, openMyAppointments } = useModal()
+const { resetBooking } = useBooking()
 const { showToast } = useToast()
 const scrolled = ref(false)
 const mobileMenuOpen = ref(false)
@@ -97,7 +98,7 @@ onUnmounted(() => {
         >
           <i class="fa-regular fa-calendar-check" /> 我的预约
         </a>
-        <button class="btn-primary w-full mt-2" @click="closeMobileMenu(); openBooking()">立即预约</button>
+        <button class="btn-primary w-full mt-2" @click="closeMobileMenu(); resetBooking(); openBooking()">立即预约</button>
       </div>
     </div>
 
@@ -149,7 +150,7 @@ onUnmounted(() => {
 
           <ThemePanel mode="button" />
 
-          <button class="btn-primary btn-sm hidden md:flex items-center gap-2 text-xs md:text-sm" @click="openBooking()">
+          <button class="btn-primary btn-sm hidden md:flex items-center gap-2 text-xs md:text-sm" @click="resetBooking(); openBooking()">
             <i class="fa-solid fa-calendar-plus" /><span>立即预约</span>
           </button>
 

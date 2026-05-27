@@ -140,6 +140,7 @@ async function handleNext() {
           note: note.value,
         },
       })
+      resetBooking()
       closeBooking()
       showToast('预约成功！期待为您服务', 'success')
     } catch (e: any) {
