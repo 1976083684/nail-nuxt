@@ -742,6 +742,7 @@ watch(viewYear, () => {
           </div>
 
           <!-- 时间段 -->
+          <div>
             <p class="text-sm font-medium text-gray-700 mb-2">排班时间段：</p>
             <div class="space-y-1 max-h-[300px] overflow-y-auto">
               <div
