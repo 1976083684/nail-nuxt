@@ -229,6 +229,13 @@ pm2 start .output/server/index.mjs --name luxe-nail -- --port 8080
 
 > **原理**：Nuxt/Nitro 会读取 `PORT` 环境变量来决定监听端口；方式三则是通过 `--port` 参数直接传给应用。
 
+如果已用默认配置启动，需要修改端口，先删除旧进程再重新启动：
+
+```bash
+pm2 delete luxe-nail
+# 然后用上述任一方式重新启动
+```
+
 ### 4. 使用 PM2 进程管理
 
 ```bash
