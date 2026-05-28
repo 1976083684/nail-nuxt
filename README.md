@@ -193,8 +193,8 @@ sudo apt-get install nginx
 
 ```bash
 # 克隆代码
-git clone <仓库地址> /srv/nail-nail
-cd /srv/nail-nail
+git clone <仓库地址> /var/www/luxe-nail
+cd /var/www/luxe-nail
 
 # 安装依赖
 npm install
@@ -208,21 +208,36 @@ npm run build
 
 > **注意**：生产环境不需要配置 `.env` 文件，环境变量通过 PM2 启动命令传入（见下方第 3 步）。
 
-### 3. 启动应用
+### 3. 启动端口配置
 
-应用默认监听 **3000** 端口，通过环境变量指定端口和工作目录：
+应用默认监听 **3000** 端口，可通过以下方式修改：
 
 ```bash
+# 方式一：PM2 启动时通过环境变量指定（推荐）
 PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail
+
+# 方式二：通过命令行参数指定端口
+pm2 start .output/server/index.mjs --name luxe-nail -- --port 3003
 ```
 
-> **注意**：生产构建的 Nitro 不会自动读取 `.env` 文件，必须通过 PM2 启动命令的环境变量传入配置。
+> **注意**：生产构建的 Nitro 不会自动读取 `.env` 文件，必须通过启动命令的环境变量或参数传入端口配置。
 
-如果需要修改端口，先删除旧进程再重新启动：
+如果已用默认配置启动，需要修改端口，先删除旧进程再重新启动：
 
 ```bash
 pm2 delete luxe-nail
-PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail
+# 然后用上述任一方式重新启动
+```
+
+### 4. 使用 PM2 进程管理
+
+```bash
+# 启动应用（默认 3000 端口）
+pm2 start .output/server/index.mjs --name luxe-nail
+
+# 设置开机自启
+pm2 startup
+pm2 save
 ```
 
 ### 5. Nginx 反向代理
@@ -235,7 +250,7 @@ server {
     server_name your-domain.com;  # 替换为你的域名或 IP
 
     location / {
-        proxy_pass http://127.0.0.1:3003;  # 与应用端口一致
+        proxy_pass http://127.0.0.1:3000;  # 与应用端口一致
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -279,7 +294,7 @@ sudo certbot renew --dry-run
 当代码有更新时，按以下步骤在服务器上操作：
 
 ```bash
-cd /srv/nail-nail
+cd /var/www/luxe-nail
 
 # 1. 拉取最新代码
 git pull origin master
@@ -290,7 +305,7 @@ npm install
 # 3. 重新构建
 npm run build
 
-# 4. 重启应用（PM2 会保留启动时的环境变量）
+# 4. 重启应用
 pm2 restart luxe-nail
 ```
 
@@ -301,8 +316,6 @@ pm2 restart luxe-nail
 ```bash
 #!/bin/bash
 set -e
-
-cd /srv/nail-nail
 
 echo ">>> 拉取最新代码..."
 git pull origin master
@@ -373,9 +386,9 @@ mysql -u root -p -e "
 
 ```bash
 # 查看端口占用
-sudo lsof -i :3003
+sudo lsof -i :3000
 # 或
-sudo netstat -tlnp | grep 3003
+sudo netstat -tlnp | grep 3000
 
 # 查看磁盘空间
 df -h
