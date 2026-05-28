@@ -28,12 +28,17 @@ export function useAuth() {
     }
   }
 
-  function simulateLogin() {
-    currentUser.value = {
-      id: Date.now(),
-      name: '微信用户',
-      avatar: '/default-avatar.jpg',
-      phone: '',
+  async function simulateLogin() {
+    try {
+      const data = await $fetch<any>('/api/auth/test-login', { method: 'POST' })
+      currentUser.value = data.user
+    } catch {
+      currentUser.value = {
+        id: Date.now(),
+        name: 'test',
+        avatar: '/default-avatar.jpg',
+        phone: '13800000000',
+      }
     }
     saveUser()
     if (loginCallback.value) {

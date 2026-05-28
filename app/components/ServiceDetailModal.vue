@@ -29,9 +29,9 @@ function handleBook() {
   if (!currentUser.value) {
     loginCallback.value = () => {
       resetBooking({ serviceId: service.value!.id })
-      closeServiceDetail()
       openBooking()
     }
+    closeServiceDetail()
     openLogin()
     return
   }

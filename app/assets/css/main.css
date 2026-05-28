@@ -228,11 +228,17 @@ body {
 /* Modal */
 .modal-overlay {
   position: fixed; inset: 0; background: var(--modal-overlay);
-  backdrop-filter: blur(6px); z-index: 200;
+  z-index: 200;
   display: flex; align-items: flex-end; justify-content: center;
-  opacity: 0; pointer-events: none; transition: opacity .35s;
+  opacity: 0; pointer-events: none;
+  transition: opacity .35s, backdrop-filter 0s .35s;
+  will-change: opacity;
 }
-.modal-overlay.active { opacity: 1; pointer-events: auto; }
+.modal-overlay.active {
+  opacity: 1; pointer-events: auto;
+  backdrop-filter: blur(6px);
+  transition: opacity .35s, backdrop-filter 0s;
+}
 .modal-panel {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: 20px 20px 0 0; width: 100%; max-width: 680px;

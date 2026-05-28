@@ -14,9 +14,9 @@ function handleBook() {
   if (!currentUser.value) {
     loginCallback.value = () => {
       resetBooking({ artistId: artist.value!.id })
-      closeArtistDetail()
       openBooking()
     }
+    closeArtistDetail()
     openLogin()
     return
   }

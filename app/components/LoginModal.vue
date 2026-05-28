@@ -38,8 +38,8 @@ function drawQR() {
   }
 }
 
-function handleQrLogin() {
-  simulateLogin()
+async function handleQrLogin() {
+  await simulateLogin()
   closeLogin()
   showToast('登录成功，欢迎回来', 'success')
 }
