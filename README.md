@@ -77,7 +77,7 @@ JWT_SECRET=your_jwt_secret_here
 
 ### 数据库初始化
 
-**方式一：一键初始化（推荐）**
+**方式一：一键初始化（推荐，自动创建数据库和所有表）**
 
 ```bash
 mysql -u root -p < server/database/init.sql
