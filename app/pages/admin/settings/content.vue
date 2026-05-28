@@ -57,7 +57,7 @@ onMounted(load)
     </div>
 
     <div v-if="loading" class="text-center py-12">
-      <i class="fas fa-spinner fa-spin text-pink-500 text-xl" />
+      <i class="fas fa-spinner fa-spin text-blue-500 text-xl" />
     </div>
 
     <div v-else class="space-y-6">
@@ -68,11 +68,11 @@ onMounted(load)
       >
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-            <i class="fas fa-layer-group text-pink-400 text-sm" />
+            <i class="fas fa-layer-group text-blue-400 text-sm" />
             {{ groupLabels[group] || group }}
           </h3>
           <button
-            class="px-3 py-1.5 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600 disabled:opacity-50"
+            class="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50"
             :disabled="savingGroup === group"
             @click="saveGroup(group)"
           >
@@ -88,7 +88,7 @@ onMounted(load)
             </label>
             <input
               v-model="item.content_value"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-pink-400 outline-none transition-colors"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none transition-colors"
             />
           </div>
         </div>

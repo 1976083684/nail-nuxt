@@ -184,7 +184,7 @@ onMounted(load)
   <div>
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-gray-800">管理员账号</h2>
-      <button class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600" @click="openNew">
+      <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="openNew">
         <i class="fas fa-plus mr-1" />添加管理员
       </button>
     </div>
@@ -207,7 +207,7 @@ onMounted(load)
               <td class="px-6 py-4 text-sm text-gray-500">{{ item.id }}</td>
               <td class="px-6 py-4 text-sm font-medium text-gray-800">
                 {{ item.username }}
-                <span v-if="isSelf(item.id)" class="ml-1 text-xs text-pink-500">(当前)</span>
+                <span v-if="isSelf(item.id)" class="ml-1 text-xs text-blue-500">(当前)</span>
               </td>
               <td class="px-6 py-4 text-sm text-gray-600">{{ item.name }}</td>
               <td class="px-6 py-4">
@@ -233,7 +233,7 @@ onMounted(load)
         </table>
         <p v-if="!items.length && !loading" class="text-center py-8 text-gray-400">暂无管理员</p>
         <div v-if="loading" class="text-center py-8">
-          <i class="fas fa-spinner fa-spin text-pink-500 text-xl" />
+          <i class="fas fa-spinner fa-spin text-blue-500 text-xl" />
         </div>
       </div>
     </div>
@@ -249,19 +249,19 @@ onMounted(load)
         <div class="space-y-4">
           <div v-if="!editId">
             <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
-            <input v-model="form.username" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" placeholder="登录用户名" />
+            <input v-model="form.username" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" placeholder="登录用户名" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
-            <input v-model="form.name" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" placeholder="显示名称" />
+            <input v-model="form.name" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" placeholder="显示名称" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">密码 {{ editId ? '(留空则不修改)' : '' }}</label>
-            <input v-model="form.password" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" placeholder="登录密码" />
+            <input v-model="form.password" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" placeholder="登录密码" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">角色</label>
-            <select v-model="form.role" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none">
+            <select v-model="form.role" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none">
               <option value="admin">管理员</option>
               <option value="super_admin">超级管理员</option>
             </select>
@@ -274,7 +274,7 @@ onMounted(load)
             <div class="border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
               <!-- 全选 -->
               <div class="flex items-center gap-2 pb-2 mb-2 border-b border-gray-200">
-                <input type="checkbox" :checked="isAllChecked" :indeterminate="isIndeterminate" @change="toggleAll" class="w-4 h-4 text-pink-500 rounded" />
+                <input type="checkbox" :checked="isAllChecked" :indeterminate="isIndeterminate" @change="toggleAll" class="w-4 h-4 text-blue-500 rounded" />
                 <span class="text-sm font-semibold text-gray-800">全选</span>
               </div>
               <!-- 菜单树 -->
@@ -285,14 +285,14 @@ onMounted(load)
                     :checked="isParentChecked(menu)"
                     :indeterminate="isParentIndeterminate(menu)"
                     @change="toggleParent(menu)"
-                    class="w-4 h-4 text-pink-500 rounded"
+                    class="w-4 h-4 text-blue-500 rounded"
                   />
                   <i :class="menu.icon" class="text-xs text-gray-400 w-4 text-center" />
                   <span class="text-sm font-medium text-gray-700">{{ menu.name }}</span>
                 </div>
                 <div v-if="menu.children?.length" class="ml-6 mt-1 space-y-1">
                   <div v-for="child in menu.children" :key="child.id" class="flex items-center gap-2">
-                    <input type="checkbox" :checked="isMenuChecked(child.id)" @change="toggleMenu(child.id)" class="w-4 h-4 text-pink-500 rounded" />
+                    <input type="checkbox" :checked="isMenuChecked(child.id)" @change="toggleMenu(child.id)" class="w-4 h-4 text-blue-500 rounded" />
                     <i :class="child.icon" class="text-xs text-gray-400 w-4 text-center" />
                     <span class="text-sm text-gray-600">{{ child.name }}</span>
                   </div>
@@ -308,7 +308,7 @@ onMounted(load)
 
         <div class="flex justify-end gap-3 mt-6">
           <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200" @click="editing = false">取消</button>
-          <button class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600" @click="save">保存</button>
+          <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="save">保存</button>
         </div>
       </div>
     </div>

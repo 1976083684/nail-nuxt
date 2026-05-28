@@ -2,20 +2,22 @@ import { query, queryOne } from '../../utils/db'
 
 export default defineEventHandler(async (event) => {
   const q = getQuery(event)
-  const category = q.category as string || '全部'
+  const categoryId = q.categoryId as string || 'all'
   const page = Number(q.page) || 1
   const perPage = Number(q.perPage) || 8
   const userId = q.userId ? Number(q.userId) : null
 
-  let sql = 'SELECT * FROM nail_gallery_items'
+  let sql = `SELECT gi.*, gc.name as category_name
+             FROM nail_gallery_items gi
+             LEFT JOIN nail_gallery_categories gc ON gi.category_id = gc.id`
   const params: any[] = []
 
-  if (category && category !== '全部') {
-    sql += ' WHERE category = ?'
-    params.push(category)
+  if (categoryId && categoryId !== 'all') {
+    sql += ' WHERE gi.category_id = ?'
+    params.push(categoryId)
   }
 
-  sql += ' ORDER BY sort_order'
+  sql += ' ORDER BY gi.sort_order'
 
   const allItems = await query(sql, params)
   const total = allItems.length

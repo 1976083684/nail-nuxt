@@ -1,28 +1,29 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
 
+const { showToast } = useToast()
+
 const artists = ref<any[]>([])
 const selectedArtist = ref<number | null>(null)
 const artistSearch = ref('')
 const showArtistDropdown = ref(false)
 const viewYear = ref(new Date().getFullYear())
 const viewMonth = ref(new Date().getMonth())
+const searchMode = ref<'month' | 'year'>('month')
 const loading = ref(false)
 const saving = ref(false)
 const schedules = ref<any[]>([])
+const totalSlots = ref(0)
 
-// 时间段配置
-const timeSlots = ref<string[]>([])
+// 分页
+const page = ref(1)
+const pageSize = ref(20)
+const pageSizeOptions = [10, 20, 50, 100]
 
-// 编辑弹窗
-const showEditModal = ref(false)
-const editForm = ref({
-  id: null as number | null,
-  artistId: null as number | null,
-  date: '',
-  timeSlot: '',
-  reason: '',
-})
+// 悬停气泡
+const hoverDate = ref<string | null>(null)
+const hoverX = ref(0)
+const hoverY = ref(0)
 
 // 美甲师搜索
 const filteredArtists = computed(() => {
@@ -35,22 +36,90 @@ const selectedArtistName = computed(() => {
   return a?.name || ''
 })
 
-// 排班记录（按日期排序）
-const records = computed(() => {
-  return schedules.value.map(s => {
-    const d = typeof s.date === 'string' ? s.date.split('T')[0] : new Date(s.date).toISOString().split('T')[0]
-    return { ...s, dateStr: d }
-  }).sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+// 按天聚合排班记录
+interface DayRecord {
+  dateStr: string
+  weekday: string
+  isFullOff: boolean
+  availableSlots: string[]
+  unavailableCount: number
+  reason: string
+  ids: number[]
+}
+
+const dayRecords = computed<DayRecord[]>(() => {
+  const map = new Map<string, DayRecord>()
+  const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+  for (const s of schedules.value) {
+    const dateStr = String(s.date).substring(0, 10)
+    if (!map.has(dateStr)) {
+      const d = new Date(dateStr + 'T00:00:00')
+      map.set(dateStr, {
+        dateStr,
+        weekday: weekdayNames[d.getDay()],
+        isFullOff: false,
+        availableSlots: [],
+        unavailableCount: 0,
+        reason: '',
+        ids: [],
+      })
+    }
+    const day = map.get(dateStr)!
+    day.ids.push(s.id)
+    if (!s.time_slot) {
+      day.isFullOff = true
+      day.reason = s.reason || ''
+    } else {
+      if (s.is_unavailable) {
+        day.unavailableCount++
+      } else {
+        day.availableSlots.push(s.time_slot)
+      }
+      if (s.reason && !day.reason) day.reason = s.reason
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr))
 })
 
-// 统计
+// 分页数据
+const totalPages = computed(() => Math.max(1, Math.ceil(dayRecords.value.length / pageSize.value)))
+const paginatedRecords = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return dayRecords.value.slice(start, start + pageSize.value)
+})
+
+// 切换分页大小
+function changePageSize(size: number) {
+  pageSize.value = size
+  page.value = 1
+}
+
+// 统计：休息天数按PD算，1PD=1整天休息，部分休息按占比
 const stats = computed(() => {
-  const dates = new Set(records.value.map(r => r.dateStr))
-  const fullOffDates = new Set(records.value.filter(r => !r.time_slot).map(r => r.dateStr))
+  const totalDays = dayRecords.value.length
+  const totalPD = dayRecords.value.reduce((sum, d) => {
+    if (d.isFullOff) return sum + 1
+    if (totalSlots.value > 0 && d.unavailableCount > 0) {
+      return sum + d.unavailableCount / totalSlots.value
+    }
+    return sum
+  }, 0)
+  return { totalDays, totalPD: Math.round(totalPD * 100) / 100 }
+})
+
+// 日期范围
+const dateRange = computed(() => {
+  if (searchMode.value === 'year') {
+    return {
+      start: `${viewYear.value}-01-01`,
+      end: `${viewYear.value}-12-31`,
+    }
+  }
   return {
-    totalRecords: records.value.length,
-    totalDays: dates.size,
-    fullOffDays: fullOffDates.size,
+    start: `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-01`,
+    end: `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-${new Date(viewYear.value, viewMonth.value + 1, 0).getDate()}`,
   }
 })
 
@@ -67,30 +136,22 @@ async function loadArtists() {
   }
 }
 
-// 加载时间段
+// 加载时间段配置
 async function loadTimeSlots() {
   try {
     const settings = await $fetch<any[]>('/api/admin/settings')
-    const startH = settings.find(s => s.setting_key === 'business_hours_start')?.setting_value || '10:00'
-    const endH = settings.find(s => s.setting_key === 'business_hours_end')?.setting_value || '19:00'
-    const duration = Number(settings.find(s => s.setting_key === 'slot_duration')?.setting_value) || 30
-
-    const slots: string[] = []
+    const startH = settings.find((s: any) => s.setting_key === 'business_hours_start')?.setting_value || '10:00'
+    const endH = settings.find((s: any) => s.setting_key === 'business_hours_end')?.setting_value || '19:00'
+    const duration = Number(settings.find((s: any) => s.setting_key === 'slot_duration')?.setting_value) || 30
     const [sh, sm] = startH.split(':').map(Number)
     const [eh, em] = endH.split(':').map(Number)
+    let count = 0
     let minutes = sh * 60 + sm
     const endMinutes = eh * 60 + em
-    while (minutes < endMinutes) {
-      slots.push(`${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`)
-      minutes += duration
-    }
-    timeSlots.value = slots
+    while (minutes < endMinutes) { count++; minutes += duration }
+    totalSlots.value = count
   } catch {
-    timeSlots.value = []
-    for (let h = 10; h < 19; h++) {
-      timeSlots.value.push(`${String(h).padStart(2, '0')}:00`)
-      timeSlots.value.push(`${String(h).padStart(2, '0')}:30`)
-    }
+    totalSlots.value = 18
   }
 }
 
@@ -99,10 +160,8 @@ async function loadSchedules() {
   if (!selectedArtist.value) return
   loading.value = true
   try {
-    const startDate = `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-01`
-    const endDate = `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-${new Date(viewYear.value, viewMonth.value + 1, 0).getDate()}`
     schedules.value = await $fetch<any[]>('/api/admin/schedules', {
-      query: { artistId: selectedArtist.value, startDate, endDate },
+      query: { artistId: selectedArtist.value, startDate: dateRange.value.start, endDate: dateRange.value.end },
     })
   } catch (e) {
     console.error('加载排班失败:', e)
@@ -130,81 +189,70 @@ function onArtistSearchBlur() {
   }, 200)
 }
 
-// 切换月份
-function changeMonth(delta: number) {
-  viewMonth.value += delta
-  if (viewMonth.value > 11) { viewMonth.value = 0; viewYear.value++ }
-  if (viewMonth.value < 0) { viewMonth.value = 11; viewYear.value-- }
+// 切换月份/年份
+function changePeriod(delta: number) {
+  if (searchMode.value === 'year') {
+    viewYear.value += delta
+  } else {
+    viewMonth.value += delta
+    if (viewMonth.value > 11) { viewMonth.value = 0; viewYear.value++ }
+    if (viewMonth.value < 0) { viewMonth.value = 11; viewYear.value-- }
+  }
   loadSchedules()
 }
 
-// 打开编辑弹窗
-function openEditModal(record: any) {
-  editForm.value = {
-    id: record.id,
-    artistId: record.artist_id,
-    date: record.dateStr,
-    timeSlot: record.time_slot || '',
-    reason: record.reason || '',
-  }
-  showEditModal.value = true
+function switchSearchMode(mode: 'month' | 'year') {
+  searchMode.value = mode
+  loadSchedules()
 }
 
-// 保存编辑
-async function saveEdit() {
-  if (!editForm.value.artistId || !editForm.value.date) return
-  saving.value = true
+// 气泡
+function onRowMouseEnter(e: MouseEvent, dateStr: string) {
+  hoverDate.value = dateStr
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  hoverX.value = rect.left + rect.width / 2
+  hoverY.value = rect.top - 8
+}
+function onRowMouseLeave() {
+  hoverDate.value = null
+}
+
+const hoverDayAllSlots = computed(() => {
+  if (!hoverDate.value) return []
+  const day = dayRecords.value.find(d => d.dateStr === hoverDate.value)
+  if (!day) return []
+  return day.availableSlots
+})
+
+// 删除某天的所有排班
+async function deleteDay(day: DayRecord) {
+  if (!confirm(`确定删除 ${day.dateStr} 的排班记录？`)) return
   try {
-    if (editForm.value.id) {
-      await $fetch(`/api/admin/schedules/${editForm.value.id}`, { method: 'DELETE' })
+    for (const id of day.ids) {
+      await $fetch(`/api/admin/schedules/${id}`, { method: 'DELETE' })
     }
-    await $fetch('/api/admin/schedules', {
-      method: 'POST',
-      body: {
-        artistId: editForm.value.artistId,
-        date: editForm.value.date,
-        timeSlot: editForm.value.timeSlot || null,
-        reason: editForm.value.reason,
-      },
-    })
-    showEditModal.value = false
     await loadSchedules()
+    showToast('删除成功', 'success')
   } catch {
-    alert('保存失败')
-  }
-  saving.value = false
-}
-
-// 删除记录
-async function deleteRecord(id: number) {
-  if (!confirm('确定删除此排班记录？')) return
-  try {
-    await $fetch(`/api/admin/schedules/${id}`, { method: 'DELETE' })
-    await loadSchedules()
-  } catch {
-    alert('删除失败')
+    showToast('删除失败', 'error')
   }
 }
 
-// 批量删除当月记录
-async function deleteAllMonth() {
-  if (!confirm(`确定删除 ${selectedArtistName.value} ${viewYear}年${viewMonth + 1}月的所有排班记录？`)) return
+// 批量删除
+async function deleteAll() {
+  const label = searchMode.value === 'year' ? `${viewYear.value}年` : `${viewYear.value}年${viewMonth.value + 1}月`
+  if (!confirm(`确定删除 ${selectedArtistName.value} ${label} 的所有排班记录？`)) return
   saving.value = true
   try {
     for (const s of schedules.value) {
       await $fetch(`/api/admin/schedules/${s.id}`, { method: 'DELETE' })
     }
     await loadSchedules()
+    showToast('清空成功', 'success')
   } catch {
-    alert('删除失败')
+    showToast('操作失败', 'error')
   }
   saving.value = false
-}
-
-function formatDateDisplay(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00')
-  const w = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${w[d.getDay()]}`
 }
 
 function handleGlobalClick(e: MouseEvent) {
@@ -232,7 +280,7 @@ watch(selectedArtist, () => { loadSchedules() })
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-gray-800">
-        <i class="fas fa-list-alt text-pink-500 mr-2" />排班记录
+        <i class="fas fa-list-alt text-blue-500 mr-2" />排班记录
       </h2>
       <NuxtLink
         to="/admin/schedules"
@@ -242,22 +290,38 @@ watch(selectedArtist, () => { loadSchedules() })
       </NuxtLink>
     </div>
 
-    <!-- 筛选栏 -->
+    <!-- 筛选栏 + 统计 -->
     <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
       <div class="flex flex-wrap items-center gap-4">
+        <!-- 统计内联 -->
+        <div class="flex items-center gap-4 mr-2">
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs text-gray-500">排班天数</span>
+            <span class="text-sm font-bold text-blue-500">{{ stats.totalDays }}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs text-gray-500">休息</span>
+            <span class="text-sm font-bold text-red-500">{{ stats.totalPD }} PD</span>
+          </div>
+        </div>
+        <div class="h-5 w-px bg-gray-200" />
+        <!-- 美甲师 -->
         <div class="flex items-center gap-2">
           <label class="text-sm font-medium text-gray-700">美甲师：</label>
-          <div class="relative artist-dropdown-wrapper min-w-[180px]">
+          <div class="relative artist-dropdown-wrapper min-w-[140px]">
             <div class="relative">
               <input
                 v-model="artistSearch"
                 type="text"
-                class="w-full px-3 py-2 pr-8 border rounded-lg text-sm focus:border-pink-400 outline-none"
+                class="w-full px-3 py-2 pr-8 border rounded-lg text-sm focus:border-blue-400 outline-none"
                 placeholder="搜索..."
                 @focus="onArtistSearchFocus"
                 @input="showArtistDropdown = true"
               />
-              <i class="fas fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none" />
+              <i
+                class="fas fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs cursor-pointer hover:text-blue-500"
+                @click.stop="showArtistDropdown = !showArtistDropdown"
+              />
             </div>
             <div
               v-if="showArtistDropdown && filteredArtists.length > 0"
@@ -267,8 +331,8 @@ watch(selectedArtist, () => { loadSchedules() })
                 v-for="a in filteredArtists"
                 :key="a.id"
                 :class="[
-                  'px-3 py-2 text-sm cursor-pointer hover:bg-pink-50 transition-colors',
-                  selectedArtist === a.id ? 'bg-pink-50 text-pink-600 font-medium' : 'text-gray-700',
+                  'px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 transition-colors',
+                  selectedArtist === a.id ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700',
                 ]"
                 @mousedown.prevent="selectArtist(a)"
               >
@@ -278,13 +342,32 @@ watch(selectedArtist, () => { loadSchedules() })
           </div>
         </div>
 
-        <!-- 月份切换 -->
+        <!-- 搜索模式切换 -->
+        <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+          <button
+            :class="['px-3 py-1.5 rounded-md text-sm transition-colors', searchMode === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+            @click="switchSearchMode('month')"
+          >
+            按月
+          </button>
+          <button
+            :class="['px-3 py-1.5 rounded-md text-sm transition-colors', searchMode === 'year' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+            @click="switchSearchMode('year')"
+          >
+            按年
+          </button>
+        </div>
+
+        <!-- 时间切换 -->
         <div class="flex items-center gap-2">
-          <button class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" @click="changeMonth(-1)">
+          <button class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" @click="changePeriod(-1)">
             <i class="fas fa-chevron-left text-gray-500 text-sm" />
           </button>
-          <span class="font-medium text-gray-700 text-sm min-w-[100px] text-center">{{ viewYear }}年{{ viewMonth + 1 }}月</span>
-          <button class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" @click="changeMonth(1)">
+          <span class="font-medium text-gray-700 text-sm min-w-[100px] text-center">
+            <template v-if="searchMode === 'year'">{{ viewYear }}年</template>
+            <template v-else>{{ viewYear }}年{{ viewMonth + 1 }}月</template>
+          </span>
+          <button class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" @click="changePeriod(1)">
             <i class="fas fa-chevron-right text-gray-500 text-sm" />
           </button>
         </div>
@@ -295,47 +378,31 @@ watch(selectedArtist, () => { loadSchedules() })
         <div class="flex gap-2">
           <NuxtLink
             to="/admin/schedules/create"
-            class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600"
+            class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
           >
             <i class="fas fa-plus mr-1" />新增排班
           </NuxtLink>
           <button
-            v-if="records.length > 0"
+            v-if="dayRecords.length > 0"
             class="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 border border-red-200"
-            @click="deleteAllMonth"
+            @click="deleteAll"
           >
-            <i class="fas fa-trash mr-1" />清空当月
+            <i class="fas fa-trash mr-1" />清空
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 统计卡片 -->
-    <div class="grid grid-cols-3 gap-4 mb-4">
-      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-        <div class="text-2xl font-bold text-pink-500">{{ stats.totalDays }}</div>
-        <div class="text-xs text-gray-500 mt-1">排班天数</div>
-      </div>
-      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-        <div class="text-2xl font-bold text-orange-500">{{ stats.totalRecords }}</div>
-        <div class="text-xs text-gray-500 mt-1">排班记录</div>
-      </div>
-      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-        <div class="text-2xl font-bold text-red-500">{{ stats.fullOffDays }}</div>
-        <div class="text-xs text-gray-500 mt-1">休息天数</div>
-      </div>
-    </div>
-
     <div v-if="loading" class="text-center py-20">
-      <i class="fas fa-spinner fa-spin text-pink-500 text-3xl" />
+      <i class="fas fa-spinner fa-spin text-blue-500 text-3xl" />
     </div>
 
     <!-- 记录列表 -->
     <div v-else class="bg-white rounded-xl shadow-sm border border-gray-100">
-      <div v-if="records.length === 0" class="text-center py-16 text-gray-400">
+      <div v-if="dayRecords.length === 0" class="text-center py-16 text-gray-400">
         <i class="fas fa-calendar-times text-4xl mb-3" />
         <p class="text-sm">暂无排班记录</p>
-        <NuxtLink to="/admin/schedules/create" class="text-pink-500 text-sm hover:underline mt-2 inline-block">
+        <NuxtLink to="/admin/schedules/create" class="text-blue-500 text-sm hover:underline mt-2 inline-block">
           去新增排班
         </NuxtLink>
       </div>
@@ -347,124 +414,130 @@ watch(selectedArtist, () => { loadSchedules() })
               <th class="text-left py-3 px-4 font-medium text-gray-600">日期</th>
               <th class="text-left py-3 px-4 font-medium text-gray-600">星期</th>
               <th class="text-left py-3 px-4 font-medium text-gray-600">状态</th>
-              <th class="text-left py-3 px-4 font-medium text-gray-600">时间段</th>
+              <th class="text-left py-3 px-4 font-medium text-gray-600">可预约时间段</th>
               <th class="text-left py-3 px-4 font-medium text-gray-600">原因</th>
               <th class="text-right py-3 px-4 font-medium text-gray-600">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="record in records"
-              :key="record.id"
-              class="border-b border-gray-50 hover:bg-pink-50/30 transition-colors"
+              v-for="day in paginatedRecords"
+              :key="day.dateStr"
+              class="border-b border-gray-50 hover:bg-blue-50/30 transition-colors"
+              @mouseenter="onRowMouseEnter($event, day.dateStr)"
+              @mouseleave="onRowMouseLeave"
             >
               <td class="py-3 px-4 font-medium text-gray-800">
-                {{ record.dateStr }}
+                {{ day.dateStr }}
               </td>
               <td class="py-3 px-4 text-gray-500">
-                {{ formatDateDisplay(record.dateStr).split(' ')[1] }}
+                {{ day.weekday }}
               </td>
               <td class="py-3 px-4">
                 <span
-                  v-if="!record.time_slot"
+                  v-if="day.isFullOff"
                   class="px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs"
                 >
                   整天休息
                 </span>
                 <span
-                  v-else
-                  class="px-2 py-1 bg-orange-100 text-orange-600 rounded-full text-xs"
+                  v-else-if="day.unavailableCount > 0"
+                  class="px-2 py-1 bg-yellow-100 text-yellow-600 rounded-full text-xs"
                 >
-                  部分不可用
+                  部分排班
+                </span>
+                <span
+                  v-else
+                  class="px-2 py-1 bg-green-100 text-green-600 rounded-full text-xs"
+                >
+                  全排
                 </span>
               </td>
-              <td class="py-3 px-4 font-mono text-gray-600">
-                {{ record.time_slot || '--' }}
+              <td class="py-3 px-4 font-mono text-gray-600 text-xs">
+                <template v-if="day.isFullOff">--</template>
+                <template v-else-if="day.availableSlots.length === 0">无</template>
+                <template v-else>
+                  {{ day.availableSlots.slice(0, 10).join('，') }}<span v-if="day.availableSlots.length > 10" class="text-gray-400">...</span>
+                </template>
               </td>
               <td class="py-3 px-4 text-gray-500 max-w-[200px] truncate">
-                {{ record.reason || '-' }}
+                {{ day.reason || '-' }}
               </td>
               <td class="py-3 px-4 text-right">
-                <div class="flex items-center justify-end gap-1">
-                  <button
-                    class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50"
-                    title="编辑"
-                    @click="openEditModal(record)"
-                  >
-                    <i class="fas fa-pen text-xs" />
-                  </button>
-                  <button
-                    class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50"
-                    title="删除"
-                    @click="deleteRecord(record.id)"
-                  >
-                    <i class="fas fa-trash text-xs" />
-                  </button>
-                </div>
+                <button
+                  class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50"
+                  title="删除"
+                  @click="deleteDay(day)"
+                >
+                  <i class="fas fa-trash text-xs" />
+                </button>
               </td>
             </tr>
           </tbody>
         </table>
+        <!-- 分页控件 -->
+        <div class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+          <div class="flex items-center gap-2 text-sm text-gray-500">
+            <span>共 {{ dayRecords.length }} 条</span>
+            <span class="text-gray-300">|</span>
+            <span>每页</span>
+            <select
+              :value="pageSize"
+              class="border border-gray-200 rounded px-2 py-1 text-sm focus:border-blue-400 outline-none"
+              @change="changePageSize(Number(($event.target as HTMLSelectElement).value))"
+            >
+              <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
+            </select>
+            <span>条</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button
+              class="w-8 h-8 rounded flex items-center justify-center text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="page <= 1"
+              @click="page--"
+            >
+              <i class="fas fa-chevron-left text-xs" />
+            </button>
+            <template v-for="p in totalPages" :key="p">
+              <button
+                v-if="p === 1 || p === totalPages || (p >= page - 1 && p <= page + 1)"
+                :class="[
+                  'w-8 h-8 rounded flex items-center justify-center text-sm',
+                  p === page ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 text-gray-600',
+                ]"
+                @click="page = p"
+              >
+                {{ p }}
+              </button>
+              <span v-else-if="p === page - 2 || p === page + 2" class="text-gray-400 px-1">...</span>
+            </template>
+            <button
+              class="w-8 h-8 rounded flex items-center justify-center text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="page >= totalPages"
+              @click="page++"
+            >
+              <i class="fas fa-chevron-right text-xs" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- 编辑弹窗 -->
+    <!-- 悬停气泡：显示全部可预约时间段 -->
     <Teleport to="body">
-      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
-          <h3 class="font-bold text-gray-800 mb-4">
-            <i class="fas fa-edit text-pink-500 mr-2" />编辑排班
-          </h3>
-
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">美甲师</label>
-              <select v-model="editForm.artistId" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none">
-                <option v-for="a in artists" :key="a.id" :value="a.id">{{ a.name }}</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">日期</label>
-              <input
-                :value="editForm.date"
-                type="date"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none"
-                @change="editForm.date = ($event.target as HTMLInputElement).value"
-              />
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">时间段（留空表示整天）</label>
-              <select v-model="editForm.timeSlot" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none">
-                <option value="">整天不可用</option>
-                <option v-for="slot in timeSlots" :key="slot" :value="slot">{{ slot }}</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">原因</label>
-              <input
-                v-model="editForm.reason"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none"
-                placeholder="如：休息、请假"
-              />
-            </div>
+      <div
+        v-if="hoverDate && hoverDayAllSlots.length > 10"
+        class="fixed z-[9999] pointer-events-none"
+        :style="{ left: hoverX + 'px', top: hoverY + 'px', transform: 'translate(-50%, -100%)' }"
+      >
+        <div class="bg-gray-900 text-white rounded-lg px-3 py-2 shadow-xl text-xs whitespace-nowrap max-w-[320px]">
+          <div class="font-medium mb-1 border-b border-gray-700 pb-1">
+            {{ hoverDate }} 可预约时间段
           </div>
-
-          <div class="flex justify-end gap-3 mt-6">
-            <button class="px-4 py-2 text-gray-600 rounded-lg text-sm hover:bg-gray-100" @click="showEditModal = false">
-              取消
-            </button>
-            <button
-              class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600 disabled:opacity-50"
-              :disabled="saving"
-              @click="saveEdit"
-            >
-              <i v-if="saving" class="fas fa-spinner fa-spin mr-1" />
-              {{ saving ? '保存中...' : '保存' }}
-            </button>
+          <div class="flex flex-wrap gap-1 max-w-[300px]">
+            <span v-for="slot in hoverDayAllSlots" :key="slot" class="px-1.5 py-0.5 bg-gray-700 rounded font-mono">{{ slot }}</span>
           </div>
+          <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-gray-900" />
         </div>
       </div>
     </Teleport>

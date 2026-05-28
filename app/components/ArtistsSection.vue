@@ -1,9 +1,8 @@
 <script setup lang="ts">
 const { get } = useSiteContent()
 const { data: artists } = await useFetch('/api/artists')
-const { openArtistDetail } = useModal()
+const { openArtistDetail, openBooking, openLogin } = useModal()
 const { resetBooking } = useBooking()
-const { openBooking } = useModal()
 const { currentUser, loginCallback } = useAuth()
 
 function handleBookArtist(id: number) {
@@ -12,6 +11,7 @@ function handleBookArtist(id: number) {
       resetBooking({ artistId: id })
       openBooking()
     }
+    openLogin()
     return
   }
   resetBooking({ artistId: id })

@@ -26,5 +26,5 @@ export default defineEventHandler(async (event) => {
     [id]
   )
 
-  return { user, nail_appointments, likes }
+  return { user, appointments: nail_appointments, likes }
 })

@@ -10,6 +10,10 @@ const loading = ref(false)
 const selected = ref<any>(null)
 const detail = ref<any>(null)
 const detailLoading = ref(false)
+const editing = ref(false)
+const editId = ref<number | null>(null)
+const form = ref<any>({ name: '', phone: '', avatar_url: '' })
+const { showToast } = useToast()
 
 async function load() {
   loading.value = true
@@ -39,6 +43,35 @@ function closeDetail() {
   detail.value = null
 }
 
+function openEdit(item: any) {
+  editId.value = item.id
+  form.value = { name: item.name || '', phone: item.phone || '', avatar_url: item.avatar_url || '' }
+  editing.value = true
+}
+
+async function save() {
+  try {
+    await $fetch(`/api/admin/users/${editId.value}`, { method: 'PUT', body: form.value })
+    editing.value = false
+    showToast('保存成功', 'success')
+    load()
+  } catch (e: any) {
+    showToast(e?.data?.message || '保存失败', 'error')
+  }
+}
+
+async function remove(id: number) {
+  if (!confirm('确定要删除此用户吗？该用户的预约和点赞记录也会一并删除。')) return
+  try {
+    await $fetch(`/api/admin/users/${id}`, { method: 'DELETE' })
+    showToast('删除成功', 'success')
+    if (selected.value === id) closeDetail()
+    load()
+  } catch (e: any) {
+    showToast(e?.data?.message || '删除失败', 'error')
+  }
+}
+
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
 
 watch(page, load)
@@ -53,10 +86,10 @@ onMounted(load)
         <input
           v-model="keyword"
           placeholder="搜索用户名或电话"
-          class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-pink-400 outline-none w-60"
+          class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-400 outline-none w-60"
           @keyup.enter="page = 1; load()"
         />
-        <button class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600" @click="page = 1; load()">
+        <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="page = 1; load()">
           <i class="fas fa-search" />
         </button>
       </div>
@@ -89,19 +122,33 @@ onMounted(load)
               <td class="px-6 py-4 text-sm text-gray-600">{{ u.phone || '-' }}</td>
               <td class="px-6 py-4 text-sm text-gray-600">{{ formatDateTime(u.created_at) }}</td>
               <td class="px-6 py-4">
-                <button
-                  class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
-                  @click="viewDetail(u.id)"
-                >
-                  <i class="fas fa-eye mr-1" />详情
-                </button>
+                <div class="flex gap-2">
+                  <button
+                    class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
+                    @click="viewDetail(u.id)"
+                  >
+                    <i class="fas fa-eye mr-1" />详情
+                  </button>
+                  <button
+                    class="px-3 py-1.5 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200"
+                    @click="openEdit(u)"
+                  >
+                    <i class="fas fa-edit mr-1" />编辑
+                  </button>
+                  <button
+                    class="px-3 py-1.5 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+                    @click="remove(u.id)"
+                  >
+                    <i class="fas fa-trash mr-1" />删除
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
         <p v-if="!items.length && !loading" class="text-center py-8 text-gray-400">暂无用户</p>
         <div v-if="loading" class="text-center py-8">
-          <i class="fas fa-spinner fa-spin text-pink-500 text-xl" />
+          <i class="fas fa-spinner fa-spin text-blue-500 text-xl" />
         </div>
       </div>
 
@@ -112,7 +159,7 @@ onMounted(load)
           <button
             v-for="p in totalPages"
             :key="p"
-            :class="['px-3 py-1 text-sm border rounded', p === page ? 'bg-pink-500 text-white border-pink-500' : 'hover:bg-gray-50']"
+            :class="['px-3 py-1 text-sm border rounded', p === page ? 'bg-blue-500 text-white border-blue-500' : 'hover:bg-gray-50']"
             @click="page = p"
           >
             {{ p }}
@@ -133,7 +180,7 @@ onMounted(load)
         </div>
 
         <div v-if="detailLoading" class="text-center py-8">
-          <i class="fas fa-spinner fa-spin text-pink-500 text-xl" />
+          <i class="fas fa-spinner fa-spin text-blue-500 text-xl" />
         </div>
 
         <template v-else-if="detail">
@@ -153,7 +200,7 @@ onMounted(load)
           <!-- Appointments -->
           <div class="mb-6">
             <h4 class="font-semibold text-gray-700 mb-3">
-              <i class="fas fa-calendar text-pink-500 mr-2" />预约记录 ({{ detail.appointments?.length || 0 }})
+              <i class="fas fa-calendar text-blue-500 mr-2" />预约记录 ({{ detail.appointments?.length || 0 }})
             </h4>
             <div v-if="detail.appointments?.length" class="space-y-2">
               <div
@@ -184,13 +231,13 @@ onMounted(load)
           <!-- Likes -->
           <div>
             <h4 class="font-semibold text-gray-700 mb-3">
-              <i class="fas fa-heart text-pink-500 mr-2" />点赞作品 ({{ detail.likes?.length || 0 }})
+              <i class="fas fa-heart text-blue-500 mr-2" />点赞作品 ({{ detail.likes?.length || 0 }})
             </h4>
             <div v-if="detail.likes?.length" class="flex flex-wrap gap-2">
               <span
                 v-for="(l, i) in detail.likes"
                 :key="i"
-                class="px-3 py-1 bg-pink-50 text-pink-600 rounded-full text-sm"
+                class="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm"
               >
                 {{ l.title }} ({{ l.category }})
               </span>
@@ -198,6 +245,33 @@ onMounted(load)
             <p v-else class="text-sm text-gray-400">暂无点赞</p>
           </div>
         </template>
+      </div>
+    </div>
+
+    <!-- Edit modal -->
+    <div v-if="editing" class="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-20 overflow-y-auto">
+      <div class="bg-white rounded-2xl p-8 w-full max-w-md mb-10">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-xl font-bold text-gray-800">编辑用户</h3>
+          <button class="text-gray-400 hover:text-gray-600" @click="editing = false">
+            <i class="fas fa-times text-xl" />
+          </button>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+            <input v-model="form.name" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">手机号</label>
+            <input v-model="form.phone" maxlength="11" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" />
+          </div>
+          <ImageCropper v-model="form.avatar_url" label="头像" :enable-crop="true" />
+        </div>
+        <div class="flex justify-end gap-3 mt-6">
+          <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200" @click="editing = false">取消</button>
+          <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="save">保存</button>
+        </div>
       </div>
     </div>
   </div>

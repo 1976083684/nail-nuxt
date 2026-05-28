@@ -257,11 +257,11 @@ body {
   aspect-ratio: 1; width: 100%; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 13px; transition: all .2s;
-  color: var(--text-muted); -webkit-tap-highlight-color: transparent;
+  color: #1f2937; -webkit-tap-highlight-color: transparent;
 }
 .cal-day:hover:not(.disabled):not(.empty) { background: var(--svc-icon-bg); color: var(--text); }
 .cal-day.selected { background: var(--accent); color: var(--btn-text); font-weight: 700; }
-.cal-day.today { border: 1px solid var(--accent); color: var(--accent); }
+.cal-day.today { color: #f97316; font-weight: 600; }
 .cal-day.disabled { opacity: .2; cursor: not-allowed; }
 .cal-day.empty { cursor: default; }
 

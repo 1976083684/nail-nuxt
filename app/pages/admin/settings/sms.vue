@@ -188,21 +188,21 @@ onUnmounted(() => {
 <template>
   <div @click="closeDropdowns">
     <div class="flex items-center gap-3 mb-6">
-      <NuxtLink to="/admin/settings" class="text-gray-400 hover:text-pink-500">
+      <NuxtLink to="/admin/settings" class="text-gray-400 hover:text-blue-500">
         <i class="fas fa-arrow-left" />
       </NuxtLink>
       <h2 class="text-xl font-bold text-gray-800">短信配置</h2>
     </div>
 
     <div v-if="loading" class="text-center py-20">
-      <i class="fas fa-spinner fa-spin text-pink-500 text-3xl" />
+      <i class="fas fa-spinner fa-spin text-blue-500 text-3xl" />
     </div>
 
     <template v-else>
       <!-- 供应商选择 -->
       <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4">
         <h3 class="font-semibold text-gray-800 mb-4">
-          <i class="fas fa-building text-pink-500 mr-2" />短信供应商
+          <i class="fas fa-building text-blue-500 mr-2" />短信供应商
         </h3>
         <div class="grid grid-cols-2 gap-4">
           <!-- 阿里云 -->
@@ -210,8 +210,8 @@ onUnmounted(() => {
             :class="[
               'p-4 rounded-xl border-2 cursor-pointer transition-all',
               activeProvider === 'aliyun'
-                ? 'border-pink-500 bg-pink-50'
-                : 'border-gray-200 hover:border-pink-300',
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-blue-300',
             ]"
             @click="switchProvider('aliyun')"
           >
@@ -230,8 +230,8 @@ onUnmounted(() => {
             :class="[
               'p-4 rounded-xl border-2 cursor-pointer transition-all relative',
               activeProvider === 'tencent'
-                ? 'border-pink-500 bg-pink-50'
-                : 'border-gray-200 hover:border-pink-300',
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-blue-300',
             ]"
             @click="switchProvider('tencent')"
           >
@@ -257,7 +257,7 @@ onUnmounted(() => {
           <button
             :class="[
               'relative w-12 h-6 rounded-full transition-colors',
-              currentConfig?.isEnabled ? 'bg-pink-500' : 'bg-gray-300',
+              currentConfig?.isEnabled ? 'bg-blue-500' : 'bg-gray-300',
             ]"
             @click="updateConfig('isEnabled', !currentConfig?.isEnabled)"
           >
@@ -284,10 +284,39 @@ onUnmounted(() => {
 
       <!-- 阿里云配置 -->
       <template v-if="activeProvider === 'aliyun' && currentConfig">
+        <!-- 操作指南 -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-4">
+          <div class="flex items-start">
+            <i class="fas fa-book-open text-blue-500 text-lg mr-3 mt-0.5" />
+            <div class="flex-1">
+              <h4 class="font-semibold text-blue-800 mb-1">阿里云号码认证服务接入指南</h4>
+              <p class="text-sm text-blue-600 mb-3">
+                首次使用请先按照阿里云官方文档完成服务开通、签名和模板审核，获取 AccessKey 后在此处配置。
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <a
+                  href="https://help.aliyun.com/zh/pnvs/getting-started/sms-authentication-service-novice-guide"
+                  target="_blank"
+                  class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+                >
+                  <i class="fas fa-external-link-alt mr-2 text-xs" />查看接入指南
+                </a>
+                <a
+                  href="https://dypns.console.aliyun.com/"
+                  target="_blank"
+                  class="inline-flex items-center px-4 py-2 bg-white text-blue-600 border border-blue-300 rounded-lg text-sm hover:bg-blue-50 transition-colors"
+                >
+                  <i class="fas fa-cog mr-2 text-xs" />阿里云控制台
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- AccessKey 配置 -->
         <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4">
           <h3 class="font-semibold text-gray-800 mb-4">
-            <i class="fas fa-key text-pink-500 mr-2" />AccessKey 配置
+            <i class="fas fa-key text-blue-500 mr-2" />AccessKey 配置
           </h3>
           <div class="space-y-4">
             <div>
@@ -295,7 +324,7 @@ onUnmounted(() => {
               <input
                 :value="currentConfig.accessKey"
                 @input="onKeyInput"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none"
+                class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none"
                 placeholder="输入 AccessKey ID"
               />
             </div>
@@ -305,7 +334,7 @@ onUnmounted(() => {
                 :value="currentConfig.accessSecret"
                 @input="onSecretInput"
                 type="password"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none"
+                class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none"
                 placeholder="输入 AccessKey Secret"
               />
             </div>
@@ -315,13 +344,13 @@ onUnmounted(() => {
         <!-- 短信签名配置 -->
         <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4">
           <h3 class="font-semibold text-gray-800 mb-4">
-            <i class="fas fa-signature text-pink-500 mr-2" />短信签名
+            <i class="fas fa-signature text-blue-500 mr-2" />短信签名
           </h3>
           <div class="relative">
             <input
               v-model="currentConfig.signName"
               @click.stop="showSignDropdown = !showSignDropdown; showTemplateDropdown = false"
-              class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none pr-8"
+              class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none pr-8"
               placeholder="输入或选择短信签名"
             />
             <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none" />
@@ -335,8 +364,8 @@ onUnmounted(() => {
                 v-for="sign in signNameOptions"
                 :key="sign"
                 :class="[
-                  'px-3 py-2 text-sm cursor-pointer hover:bg-pink-50',
-                  currentConfig?.signName === sign ? 'bg-pink-100 text-pink-700' : 'text-gray-700',
+                  'px-3 py-2 text-sm cursor-pointer hover:bg-blue-50',
+                  currentConfig?.signName === sign ? 'bg-blue-100 text-blue-700' : 'text-gray-700',
                 ]"
                 @click="selectSign(sign)"
               >
@@ -354,13 +383,13 @@ onUnmounted(() => {
         <!-- 短信模板配置 -->
         <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4">
           <h3 class="font-semibold text-gray-800 mb-4">
-            <i class="fas fa-file-alt text-pink-500 mr-2" />短信模板
+            <i class="fas fa-file-alt text-blue-500 mr-2" />短信模板
           </h3>
           <div class="relative">
             <input
               v-model="currentConfig.templateCode"
               @click.stop="showTemplateDropdown = !showTemplateDropdown; showSignDropdown = false"
-              class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none pr-8"
+              class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none pr-8"
               placeholder="输入或选择模板CODE"
             />
             <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none" />
@@ -374,8 +403,8 @@ onUnmounted(() => {
                 v-for="t in templateOptions"
                 :key="t.code"
                 :class="[
-                  'px-3 py-2 text-sm cursor-pointer hover:bg-pink-50',
-                  currentConfig?.templateCode === t.code ? 'bg-pink-100 text-pink-700' : 'text-gray-700',
+                  'px-3 py-2 text-sm cursor-pointer hover:bg-blue-50',
+                  currentConfig?.templateCode === t.code ? 'bg-blue-100 text-blue-700' : 'text-gray-700',
                 ]"
                 @click="selectTemplate(t.code)"
               >
@@ -402,12 +431,12 @@ onUnmounted(() => {
         <!-- 测试发送 -->
         <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4">
           <h3 class="font-semibold text-gray-800 mb-4">
-            <i class="fas fa-paper-plane text-pink-500 mr-2" />测试发送
+            <i class="fas fa-paper-plane text-blue-500 mr-2" />测试发送
           </h3>
           <div class="flex gap-3">
             <input
               v-model="testPhone"
-              class="flex-1 px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none"
+              class="flex-1 px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none"
               placeholder="输入测试手机号"
               maxlength="11"
             />
@@ -457,7 +486,7 @@ onUnmounted(() => {
         <!-- 保存按钮 -->
         <div class="flex justify-end pt-4">
           <button
-            class="px-6 py-2.5 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600 disabled:opacity-50"
+            class="px-6 py-2.5 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50"
             :disabled="saving"
             @click="save"
           >

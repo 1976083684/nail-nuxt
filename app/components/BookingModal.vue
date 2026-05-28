@@ -8,6 +8,9 @@ const { data: services } = await useFetch('/api/services')
 const { data: artists } = await useFetch('/api/artists')
 const { data: siteSettings } = await useFetch<any[]>('/api/admin/settings')
 
+// 美甲师排班数据
+const artistScheduleData = ref<any>(null)
+
 const bookingFee = computed(() => {
   const fee = siteSettings.value?.find((s: any) => s.setting_key === 'booking_fee')
   return Number(fee?.setting_value) || 5
@@ -52,14 +55,69 @@ async function fetchAvailability() {
   }
 }
 
+// 获取美甲师排班记录（当月及下月）
+async function fetchArtistSchedule() {
+  const artistId = bookingState.value.artistId
+  if (!artistId || artistId === 0) {
+    artistScheduleData.value = null
+    return
+  }
+
+  const { calYear: y, calMonth: m } = bookingState.value
+  // 查询当月1号到下月最后一天
+  const startDate = `${y}-${String(m + 1).padStart(2, '0')}-01`
+  const nextMonth = m === 11 ? 0 : m + 1
+  const nextYear = m === 11 ? y + 1 : y
+  const lastDay = new Date(nextYear, nextMonth + 1, 0).getDate()
+  const endDate = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${lastDay}`
+
+  try {
+    artistScheduleData.value = await $fetch('/api/artist-schedule', {
+      query: { artistId, startDate, endDate }
+    })
+  } catch {
+    artistScheduleData.value = null
+  }
+}
+
 watch(
   [() => bookingState.value.date, () => bookingState.value.artistId],
   () => { fetchAvailability() }
 )
 
+// 当选择美甲师或切换月份时，获取排班记录
+watch(
+  [() => bookingState.value.artistId, () => bookingState.value.calYear, () => bookingState.value.calMonth],
+  () => { fetchArtistSchedule() },
+  { immediate: true }
+)
+
 function selectDate(y: number, m: number, d: number) {
+  // 检查该日期是否可预约
+  const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  const scheduleInfo = artistScheduleData.value?.schedules?.[dateStr]
+  if (scheduleInfo && !scheduleInfo.available) {
+    return // 不可预约的日期不允许选择
+  }
   bookingState.value.date = new Date(y, m, d)
   bookingState.value.time = null
+}
+
+// 判断时间段是否已过（仅今天生效）
+function isTimePast(time: string): boolean {
+  if (!bookingState.value.date) return false
+  const now = new Date()
+  const selected = bookingState.value.date
+  // 只有选中日期是今天时才判断
+  if (selected.getFullYear() !== now.getFullYear() ||
+      selected.getMonth() !== now.getMonth() ||
+      selected.getDate() !== now.getDate()) {
+    return false
+  }
+  const [h, m] = time.split(':').map(Number)
+  const slotMinutes = h * 60 + m
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  return slotMinutes <= nowMinutes
 }
 
 function selectTime(t: string) {
@@ -85,10 +143,20 @@ const calendarDays = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const days: Array<{ day: number | null; disabled: boolean; today: boolean; selected: boolean }> = []
+  const days: Array<{
+    day: number | null
+    disabled: boolean
+    today: boolean
+    selected: boolean
+    available: boolean | null  // null=未查询, true=可预约, false=不可预约
+    hasSchedule: boolean  // 是否有排班记录
+    availableSlots: number
+    totalSlots: number
+    reason: string
+  }> = []
 
   for (let i = 0; i < firstDay; i++) {
-    days.push({ day: null, disabled: true, today: false, selected: false })
+    days.push({ day: null, disabled: true, today: false, selected: false, available: null, hasSchedule: false, availableSlots: 0, totalSlots: 0, reason: '' })
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -96,7 +164,47 @@ const calendarDays = computed(() => {
     const isPast = dt < today
     const isToday = dt.getTime() === today.getTime()
     const isSelected = bookingState.value.date?.getTime() === dt.getTime()
-    days.push({ day: d, disabled: isPast, today: isToday, selected: isSelected })
+
+    // 检查排班数据
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const scheduleInfo = artistScheduleData.value?.schedules?.[dateStr]
+
+    let available: boolean | null = null
+    let hasSchedule = false
+    let availableSlots = 0
+    let totalSlots = 0
+    let reason = ''
+
+    if (scheduleInfo) {
+      // 有排班记录
+      hasSchedule = true
+      available = scheduleInfo.available
+      availableSlots = scheduleInfo.availableSlots
+      totalSlots = scheduleInfo.totalSlots
+      reason = scheduleInfo.reason
+    } else if (artistScheduleData.value) {
+      // 已查询到排班数据，但该日期没有排班记录 → 不可预约，不显示状态点
+      available = false
+      hasSchedule = false
+      reason = '无排班'
+    }
+
+    // 如果是过去日期，标记为不可用
+    if (isPast) {
+      available = false
+    }
+
+    days.push({
+      day: d,
+      disabled: isPast,
+      today: isToday,
+      selected: isSelected,
+      available,
+      hasSchedule,
+      availableSlots,
+      totalSlots,
+      reason
+    })
   }
 
   return days
@@ -289,10 +397,26 @@ const selectedArtist = computed(() => {
                     disabled: cell.disabled,
                     today: cell.today,
                     selected: cell.selected,
+                    'schedule-unavailable': cell.available === false && !cell.disabled,
+                    'schedule-available': cell.available === true && !cell.disabled,
                   }"
-                  @click="cell.day && !cell.disabled && selectDate(bookingState.calYear, bookingState.calMonth, cell.day)"
+                  :title="cell.reason || (cell.available === false ? '不可预约' : cell.available === true ? '可预约' : '')"
+                  @click="cell.day && !cell.disabled && cell.available !== false && selectDate(bookingState.calYear, bookingState.calMonth, cell.day)"
                 >
-                  {{ cell.day }}
+                  <span>{{ cell.day }}</span>
+                  <!-- 只有有排班记录的日子才显示状态点 -->
+                  <span v-if="cell.hasSchedule && !cell.disabled" class="schedule-dot" :class="{ 'dot-unavailable': !cell.available }" />
+                </div>
+              </div>
+              <!-- 排班图例 -->
+              <div v-if="artistScheduleData && bookingState.artistId && bookingState.artistId !== 0" class="flex items-center gap-3 mt-2 text-[10px]" style="color: var(--text-muted)">
+                <div class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-green-500" />
+                  <span>可约</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-red-500" />
+                  <span>不可约</span>
                 </div>
               </div>
             </div>
@@ -308,9 +432,9 @@ const selectedArtist = computed(() => {
                     class="time-slot"
                     :class="{
                       selected: bookingState.time === slot.time,
-                      disabled: !slot.available,
+                      disabled: !slot.available || isTimePast(slot.time),
                     }"
-                    @click="slot.available && selectTime(slot.time)"
+                    @click="slot.available && !isTimePast(slot.time) && selectTime(slot.time)"
                   >
                     {{ slot.time }}
                   </div>
@@ -426,3 +550,26 @@ const selectedArtist = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.schedule-dot {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+.dot-unavailable {
+  background: #ef4444;
+}
+.cal-day {
+  position: relative;
+}
+.cal-day.schedule-unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+</style>

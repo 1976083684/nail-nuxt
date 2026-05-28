@@ -33,14 +33,62 @@ export default defineEventHandler(async () => {
       AND MONTH(a.date) = MONTH(CURDATE())
   `)
 
-  // 近7天预约趋势
+  // 近30天预约趋势
   const chartData = await query<any>(`
     SELECT DATE(date) as date, COUNT(*) as count
     FROM nail_appointments
-    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
     GROUP BY DATE(date)
     ORDER BY date
   `)
+
+  // 近30天收入趋势
+  const revenueTrend = await query<any>(`
+    SELECT DATE(a.date) as date, COALESCE(SUM(s.price), 0) as revenue
+    FROM nail_appointments a
+    JOIN nail_services s ON a.service_id = s.id
+    WHERE a.status = 'completed'
+      AND a.date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    GROUP BY DATE(a.date)
+    ORDER BY date
+  `)
+
+  // 近6个月预约月度统计
+  const monthlyStats = await query<any>(`
+    SELECT DATE_FORMAT(date, '%Y-%m') as month, COUNT(*) as count
+    FROM nail_appointments
+    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+    GROUP BY DATE_FORMAT(date, '%Y-%m')
+    ORDER BY month
+  `)
+
+  // 用户注册分析
+  let todayNewUsers, monthNewUsers, userRegistrationTrend, monthlyUserStats
+  try {
+    todayNewUsers = await queryOne<any>("SELECT COUNT(*) as count FROM sys_users WHERE DATE(created_at) = CURDATE() AND (account_type = 'user' OR account_type IS NULL)")
+    monthNewUsers = await queryOne<any>("SELECT COUNT(*) as count FROM sys_users WHERE YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) AND (account_type = 'user' OR account_type IS NULL)")
+    userRegistrationTrend = await query<any>(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM sys_users
+      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        AND (account_type = 'user' OR account_type IS NULL)
+      GROUP BY DATE(created_at)
+      ORDER BY date
+    `)
+    monthlyUserStats = await query<any>(`
+      SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count
+      FROM sys_users
+      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        AND (account_type = 'user' OR account_type IS NULL)
+      GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+      ORDER BY month
+    `)
+  } catch {
+    todayNewUsers = { count: 0 }
+    monthNewUsers = { count: 0 }
+    userRegistrationTrend = []
+    monthlyUserStats = []
+  }
 
   // 各服务预约占比
   const serviceStats = await query<any>(`
@@ -82,12 +130,18 @@ export default defineEventHandler(async () => {
       todayAppointments: todayAppointments?.count || 0,
       upcomingAppointments: upcomingAppointments?.count || 0,
       totalUsers: totalUsers?.count || 0,
+      todayNewUsers: todayNewUsers?.count || 0,
+      monthNewUsers: monthNewUsers?.count || 0,
       totalServices: totalServices?.count || 0,
       totalArtists: totalArtists?.count || 0,
       totalRevenue: Number(totalRevenue?.revenue) || 0,
       monthRevenue: Number(monthRevenue?.revenue) || 0,
     },
     chartData,
+    revenueTrend,
+    monthlyStats,
+    userRegistrationTrend,
+    monthlyUserStats,
     serviceStats,
     artistStats,
     recentAppointments,

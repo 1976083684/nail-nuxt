@@ -2,6 +2,22 @@ import { query, queryOne, transaction } from '../../utils/db'
 import { getSettings } from '../../utils/db'
 import { getOccupiedSlots, calculateEndTime, timeToMinutes } from '../../utils/time-slots'
 
+/**
+ * 预约成功后，将占用的时间段写入排班表标记为不可预约
+ */
+async function blockScheduleSlots(artistId: number, date: string, occupiedSlots: string[]) {
+  for (const slot of occupiedSlots) {
+    try {
+      await query(
+        `INSERT INTO nail_artist_schedules (artist_id, date, time_slot, is_unavailable, reason)
+         VALUES (?, ?, ?, 1, '已预约')
+         ON DUPLICATE KEY UPDATE is_unavailable = 1, reason = '已预约'`,
+        [artistId, date, slot]
+      )
+    } catch {}
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { userId, serviceId, artistId, date, time, name, phone, note } = body
@@ -84,6 +100,11 @@ export default defineEventHandler(async (event) => {
     )
     return insertResult[0]
   })
+
+  // 预约成功后阻塞排班时间段
+  if (actualArtistId) {
+    await blockScheduleSlots(actualArtistId, date, occupiedSlots)
+  }
 
   return { success: true, id: (result as any).insertId }
 })

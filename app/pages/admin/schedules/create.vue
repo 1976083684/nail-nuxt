@@ -1,6 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
 
+const { showToast } = useToast()
+
 const artists = ref<any[]>([])
 const selectedArtist = ref<number | null>(null)
 const artistSearch = ref('')
@@ -24,47 +26,42 @@ const dragSelectedDates = ref<string[]>([])
 // 当前选中的日期（用于编辑时段）
 const editingDate = ref<string | null>(null)
 
-// 临时排班设置（未确认前保存在本地）
-const tempScheduleSettings = ref<Record<string, { isFullOff: boolean; reason: string; unavailableSlots: string[] }>>({})
 // 双击计时器
 const clickTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 // 时间段拖拽批量操作
 const slotDragging = ref(false)
 const slotDragTarget = ref<boolean | null>(null)
 
-// 已有排班数据
-const schedules = ref<any[]>([])
+// 临时排班数据（只存当天及以后的排班记录）
+const tempSchedules = ref<Map<string, { isFullOff: boolean; unavailableSlots: Set<string>; savedSlots: number }>>(new Map())
 
 // 节假日数据
 const holidaysData = ref<Record<string, { name: string; isWorkday: boolean }>>({})
 
-// 选中日期的排班
-const editingDateSchedules = computed(() => {
-  if (!editingDate.value) return []
-  return schedules.value.filter(s => {
-    const d = typeof s.date === 'string' ? s.date.split('T')[0] : new Date(s.date).toISOString().split('T')[0]
-    return d === editingDate.value
-  })
-})
+// 获取今天的日期字符串
+function getTodayStr(): string {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
 
+// 获取指定日期的排班数据（从临时数组）
+function getDaySchedule(dateStr: string) {
+  return tempSchedules.value.get(dateStr) || { isFullOff: false, unavailableSlots: new Set<string>(), savedSlots: 0 }
+}
+
+// 选中日期是否整天休息
 const editingDateFullOff = computed(() => {
-  return editingDateSchedules.value.some((s: any) => !s.time_slot)
+  if (!editingDate.value) return false
+  return getDaySchedule(editingDate.value).isFullOff
 })
 
+// 选中日期的不可用时间段
 const editingDateUnavailableSlots = computed(() => {
-  const set = new Set<string>()
-  for (const s of editingDateSchedules.value) {
-    if (s.time_slot) set.add(s.time_slot)
-  }
-  return set
+  if (!editingDate.value) return new Set<string>()
+  return getDaySchedule(editingDate.value).unavailableSlots
 })
 
-const editingDateFullReason = computed(() => {
-  const full = editingDateSchedules.value.find((s: any) => !s.time_slot)
-  return full?.reason || ''
-})
-
-// 判断时间段是否可预约（不在不可用列表中且不是整天休息）
+// 判断时间段是否可预约
 function isSlotAvailable(slot: string): boolean {
   if (editingDateFullOff.value) return false
   return !editingDateUnavailableSlots.value.has(slot)
@@ -105,14 +102,15 @@ const calendarDays = computed(() => {
     isEditing: boolean
     isWeekend: boolean
     isHoliday: boolean
-    isWorkday: boolean // 补班日
+    isWorkday: boolean
     holidayName: string
     hasSchedule: boolean
     isFullOff: boolean
+    isPartial: boolean
   }> = []
 
   for (let i = 0; i < firstDay; i++) {
-    days.push({ day: null, dateStr: null, isPast: false, isToday: false, isDragSelected: false, isEditing: false, isWeekend: false, isHoliday: false, isWorkday: false, holidayName: '', hasSchedule: false, isFullOff: false })
+    days.push({ day: null, dateStr: null, isPast: false, isToday: false, isDragSelected: false, isEditing: false, isWeekend: false, isHoliday: false, isWorkday: false, holidayName: '', hasSchedule: false, isFullOff: false, isPartial: false })
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -128,17 +126,22 @@ const calendarDays = computed(() => {
     // 节假日信息
     const holiday = holidaysData.value[dateStr]
     const isHoliday = !!holiday && !holiday.isWorkday
-    const isWorkday = !!holiday && holiday.isWorkday // 补班日
+    const isWorkday = !!holiday && holiday.isWorkday
     const holidayName = holiday?.name || ''
 
-    const dayEntries = schedules.value.filter(s => {
-      const sd = typeof s.date === 'string' ? s.date.split('T')[0] : new Date(s.date).toISOString().split('T')[0]
-      return sd === dateStr
-    })
-    const hasSchedule = dayEntries.length > 0
-    const isFullOff = dayEntries.some((s: any) => !s.time_slot)
+    // 排班状态判断（从临时数组）
+    const daySchedule = getDaySchedule(dateStr)
+    const hasSchedule = daySchedule.isFullOff || daySchedule.savedSlots > 0
+    const isFullOff = daySchedule.isFullOff
 
-    days.push({ day: d, dateStr, isPast, isToday, isDragSelected, isEditing, isWeekend, isHoliday, isWorkday, holidayName, hasSchedule, isFullOff })
+    // 绿色：所有排班记录 is_unavailable=0（全排）
+    // 黄色：有排班记录存在 is_unavailable=1（未排满）
+    let isPartial = false
+    if (hasSchedule && !isFullOff) {
+      isPartial = daySchedule.unavailableSlots.size > 0
+    }
+
+    days.push({ day: d, dateStr, isPast, isToday, isDragSelected, isEditing, isWeekend, isHoliday, isWorkday, holidayName, hasSchedule, isFullOff, isPartial })
   }
 
   return days
@@ -189,16 +192,35 @@ async function loadTimeSlots() {
   }
 }
 
-// 加载排班数据
+// 加载排班数据（只查询当天及以后的数据，存入临时数组）
 async function loadSchedules() {
   if (!selectedArtist.value) return
   loading.value = true
   try {
-    const startDate = `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-01`
-    const endDate = `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-${new Date(viewYear.value, viewMonth.value + 1, 0).getDate()}`
-    schedules.value = await $fetch<any[]>('/api/admin/schedules', {
-      query: { artistId: selectedArtist.value, startDate, endDate },
+    const todayStr = getTodayStr()
+    // 查询当天及以后的所有排班数据（不限月份，方便翻页查看）
+    const data = await $fetch<any[]>('/api/admin/schedules', {
+      query: { artistId: selectedArtist.value, startDate: todayStr },
     })
+
+    // 转换为临时数组（Map<日期, 排班数据>）
+    const map = new Map<string, { isFullOff: boolean; unavailableSlots: Set<string>; savedSlots: number }>()
+    for (const s of data) {
+      const dateStr = String(s.date).substring(0, 10)
+      if (!map.has(dateStr)) {
+        map.set(dateStr, { isFullOff: false, unavailableSlots: new Set<string>(), savedSlots: 0 })
+      }
+      const dayData = map.get(dateStr)!
+      if (!s.time_slot) {
+        dayData.isFullOff = true
+      } else {
+        dayData.savedSlots++
+        if (s.is_unavailable) {
+          dayData.unavailableSlots.add(s.time_slot)
+        }
+      }
+    }
+    tempSchedules.value = map
   } catch (e) {
     console.error('加载排班失败:', e)
   }
@@ -243,11 +265,8 @@ function onArtistSearchBlur() {
 // 判断日期是否应该被排除（节假日或周末，但补班日不排除）
 function shouldExcludeDate(dateStr: string): boolean {
   const holiday = holidaysData.value[dateStr]
-  // 如果是补班日（调休工作日），不排除
   if (holiday?.isWorkday) return false
-  // 如果是节假日，排除
   if (holiday && !holiday.isWorkday) return true
-  // 如果是周末，排除
   const dt = new Date(dateStr + 'T00:00:00')
   const dayOfWeek = dt.getDay()
   if (dayOfWeek === 0 || dayOfWeek === 6) return true
@@ -285,13 +304,11 @@ function updateDragSelection() {
   const endDt = new Date(end + 'T00:00:00')
   while (current <= endDt) {
     const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
-    // 只添加新选中，不取消已选中的
     if (!dragSelectedDates.value.includes(dateStr)) {
       dates.push(dateStr)
     }
     current.setDate(current.getDate() + 1)
   }
-  // 合并已有选中和新选中
   dragSelectedDates.value = [...new Set([...dragSelectedDates.value, ...dates])]
 }
 
@@ -308,7 +325,6 @@ function selectThisWeek() {
     d.setDate(start.getDate() + i)
     if (d >= today) {
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      // 自动排除节假日和周末（补班日除外）
       if (!shouldExcludeDate(dateStr)) {
         dates.push(dateStr)
       }
@@ -332,7 +348,6 @@ function selectNextWeek() {
     const d = new Date(nextSunday)
     d.setDate(nextSunday.getDate() + i)
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    // 自动排除节假日和周末（补班日除外）
     if (!shouldExcludeDate(dateStr)) {
       dates.push(dateStr)
     }
@@ -353,7 +368,6 @@ function selectThisMonth() {
     const dt = new Date(viewYear.value, viewMonth.value, d)
     if (dt >= today) {
       const dateStr = `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-      // 自动排除节假日和周末（补班日除外）
       if (!shouldExcludeDate(dateStr)) {
         dates.push(dateStr)
       }
@@ -389,14 +403,17 @@ function selectNextMonth() {
 function onSlotMouseDown(slot: string) {
   if (saving.value) return
   slotDragging.value = true
-  // 目标状态：如果当前可用，则拖拽设为不可用；反之亦然
-  slotDragTarget.value = !isSlotAvailable(slot)
-  toggleTimeSlotDirect(slot, slotDragTarget.value)
+  if (editingDateFullOff.value || !isSlotAvailable(slot)) {
+    slotDragTarget.value = false
+  } else {
+    slotDragTarget.value = true
+  }
+  toggleTimeSlotLocal(slot, slotDragTarget.value)
 }
 
 function onSlotMouseEnter(slot: string) {
   if (!slotDragging.value || saving.value) return
-  toggleTimeSlotDirect(slot, slotDragTarget.value!)
+  toggleTimeSlotLocal(slot, slotDragTarget.value!)
 }
 
 function onSlotMouseUp() {
@@ -404,56 +421,79 @@ function onSlotMouseUp() {
   slotDragTarget.value = null
 }
 
-async function toggleTimeSlotDirect(slot: string, makeUnavailable: boolean) {
-  if (!editingDate.value || !selectedArtist.value) return
+// 本地切换时间段状态（更新临时数组）
+function toggleTimeSlotLocal(slot: string, makeUnavailable: boolean) {
+  if (!editingDate.value) return
   const isCurrentlyAvailable = isSlotAvailable(slot)
-  // 状态已经和目标一致，跳过
   if (makeUnavailable === !isCurrentlyAvailable) return
 
-  saving.value = true
-  try {
-    // 如果有整天休息记录，先删除
-    if (editingDateFullOff.value) {
-      const fullDay = editingDateSchedules.value.find((s: any) => !s.time_slot)
-      if (fullDay) await $fetch(`/api/admin/schedules/${fullDay.id}`, { method: 'DELETE' })
-    }
+  // 获取或创建当天的排班数据
+  let dayData = tempSchedules.value.get(editingDate.value)
+  if (!dayData) {
+    dayData = { isFullOff: false, unavailableSlots: new Set<string>(), savedSlots: timeSlots.value.length }
+    tempSchedules.value.set(editingDate.value, dayData)
+  }
 
-    if (makeUnavailable) {
-      await $fetch('/api/admin/schedules', {
-        method: 'POST',
-        body: { artistId: selectedArtist.value, date: editingDate.value, timeSlot: slot, reason: '' },
-      })
-    } else {
-      const entry = editingDateSchedules.value.find((s: any) => s.time_slot === slot)
-      if (entry) await $fetch(`/api/admin/schedules/${entry.id}`, { method: 'DELETE' })
-    }
-    await loadSchedules()
-  } catch { alert('操作失败') }
-  saving.value = false
+  // 如果有整天休息，先取消
+  if (dayData.isFullOff) {
+    dayData.isFullOff = false
+  }
+
+  // 切换时间段状态
+  if (makeUnavailable) {
+    dayData.unavailableSlots.add(slot)
+  } else {
+    dayData.unavailableSlots.delete(slot)
+  }
+
+  // 触发响应式更新
+  tempSchedules.value = new Map(tempSchedules.value)
 }
 
 function clearSelection() {
   resetAllStates()
 }
 
-// 确认排班（批量设置为全天上班）
+// 确认排班（批量保存到数据库）
 async function confirmBatchWork() {
   if (!selectedArtist.value || dragSelectedDates.value.length === 0) return
   saving.value = true
   try {
-    await $fetch('/api/admin/schedules/batch', {
-      method: 'POST',
-      body: {
-        artistId: selectedArtist.value,
-        dates: dragSelectedDates.value,
-        type: 'work',
-      },
-    })
-    // 确认后重置所有状态
+    for (const dateStr of dragSelectedDates.value) {
+      const dayData = getDaySchedule(dateStr)
+
+      // 先删除该日期的所有已有排班
+      const existingSchedules = await $fetch<any[]>('/api/admin/schedules', {
+        query: { artistId: selectedArtist.value, startDate: dateStr, endDate: dateStr },
+      })
+      for (const s of existingSchedules) {
+        await $fetch(`/api/admin/schedules/${s.id}`, { method: 'DELETE' })
+      }
+
+      // 创建新的排班记录
+      if (dayData.isFullOff) {
+        // 整天休息
+        await $fetch('/api/admin/schedules', {
+          method: 'POST',
+          body: { artistId: selectedArtist.value, date: dateStr, timeSlot: null, reason: '', isUnavailable: true },
+        })
+      } else {
+        // 保存所有时间段（可预约 + 不可预约）
+        for (const slot of timeSlots.value) {
+          const isUnavailable = dayData.unavailableSlots.has(slot)
+          await $fetch('/api/admin/schedules', {
+            method: 'POST',
+            body: { artistId: selectedArtist.value, date: dateStr, timeSlot: slot, reason: '', isUnavailable },
+          })
+        }
+      }
+    }
+
     resetAllStates()
     await loadSchedules()
+    showToast('排班保存成功', 'success')
   } catch (e: any) {
-    alert(e?.data?.message || '操作失败')
+    showToast(e?.data?.message || '操作失败', 'error')
   }
   saving.value = false
 }
@@ -464,23 +504,19 @@ function resetAllStates() {
   dragStartDate.value = null
   dragEndDate.value = null
   editingDate.value = null
-  tempScheduleSettings.value = {}
   isDragging.value = false
 }
 
 // 单击日期 - 查看详情
 function clickDate(dateStr: string, isPast: boolean) {
   if (isPast) return
-  // 单击只切换编辑日期查看详情，不影响选中状态
   editingDate.value = dateStr
 }
 
 // 双击日期 - 取消该日期的选中状态
 function dblClickDate(dateStr: string, isPast: boolean) {
   if (isPast) return
-  // 取消该日期的选中
   dragSelectedDates.value = dragSelectedDates.value.filter(d => d !== dateStr)
-  // 如果取消的是当前编辑日期，清空编辑状态
   if (editingDate.value === dateStr) {
     editingDate.value = null
   }
@@ -492,12 +528,10 @@ function handleDateClick(dateStr: string, isPast: boolean, event: MouseEvent) {
   event.preventDefault()
 
   if (clickTimer.value) {
-    // 双击
     clearTimeout(clickTimer.value)
     clickTimer.value = null
     dblClickDate(dateStr, isPast)
   } else {
-    // 单击（延迟执行，等待可能的双击）
     clickTimer.value = setTimeout(() => {
       clickTimer.value = null
       clickDate(dateStr, isPast)
@@ -505,49 +539,30 @@ function handleDateClick(dateStr: string, isPast: boolean, event: MouseEvent) {
   }
 }
 
-// 切换时间段
-async function toggleTimeSlot(slot: string) {
-  if (!editingDate.value || !selectedArtist.value) return
-  saving.value = true
-  try {
-    // 如果有整天休息记录，先删除
-    if (editingDateFullOff.value) {
-      const fullDay = editingDateSchedules.value.find((s: any) => !s.time_slot)
-      if (fullDay) await $fetch(`/api/admin/schedules/${fullDay.id}`, { method: 'DELETE' })
-    }
+// 切换整天休息状态（本地操作）
+function toggleFullOff() {
+  if (!editingDate.value) return
 
-    if (editingDateUnavailableSlots.value.has(slot)) {
-      const entry = editingDateSchedules.value.find((s: any) => s.time_slot === slot)
-      if (entry) await $fetch(`/api/admin/schedules/${entry.id}`, { method: 'DELETE' })
-    } else {
-      await $fetch('/api/admin/schedules', {
-        method: 'POST',
-        body: { artistId: selectedArtist.value, date: editingDate.value, timeSlot: slot, reason: '' },
-      })
-    }
-    await loadSchedules()
-  } catch { alert('操作失败') }
-  saving.value = false
-}
+  let dayData = tempSchedules.value.get(editingDate.value)
+  if (!dayData) {
+    dayData = { isFullOff: false, unavailableSlots: new Set<string>(), savedSlots: timeSlots.value.length }
+    tempSchedules.value.set(editingDate.value, dayData)
+  }
 
-// 更新时间段原因
-async function updateSlotReason(slot: string, reason: string) {
-  if (!editingDate.value || !selectedArtist.value) return
-  await $fetch('/api/admin/schedules', {
-    method: 'POST',
-    body: { artistId: selectedArtist.value, date: editingDate.value, timeSlot: slot, reason },
-  })
-  await loadSchedules()
+  dayData.isFullOff = !dayData.isFullOff
+  if (dayData.isFullOff) {
+    dayData.unavailableSlots.clear()
+  }
+
+  // 触发响应式更新
+  tempSchedules.value = new Map(tempSchedules.value)
 }
 
 function changeMonth(delta: number) {
   viewMonth.value += delta
   if (viewMonth.value > 11) { viewMonth.value = 0; viewYear.value++ }
   if (viewMonth.value < 0) { viewMonth.value = 11; viewYear.value-- }
-  // 翻页不清除选择，只切换编辑日期
   editingDate.value = null
-  loadSchedules()
-  // 如果年份变了，重新加载节假日
   if (delta > 12 || delta < -12) {
     loadHolidays()
   }
@@ -575,8 +590,10 @@ function handleGlobalMouseUp() {
 onMounted(async () => {
   document.addEventListener('mouseup', handleGlobalMouseUp)
   document.addEventListener('click', handleGlobalClick)
-  await Promise.all([loadArtists(), loadTimeSlots(), loadHolidays()])
+  await Promise.all([loadTimeSlots(), loadHolidays()])
+  await loadArtists()
   await loadSchedules()
+  initDone.value = true
 })
 
 onUnmounted(() => {
@@ -587,12 +604,13 @@ onUnmounted(() => {
   }
 })
 
+const initDone = ref(false)
+
 watch(selectedArtist, () => {
   editingDate.value = null
-  loadSchedules()
+  if (initDone.value) loadSchedules()
 })
 
-// 监听年份变化，重新加载节假日
 watch(viewYear, () => {
   loadHolidays()
 })
@@ -603,7 +621,7 @@ watch(viewYear, () => {
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-gray-800">
-        <i class="fas fa-plus-circle text-pink-500 mr-2" />新增排班
+        <i class="fas fa-plus-circle text-blue-500 mr-2" />新增排班
       </h2>
       <NuxtLink
         to="/admin/schedules"
@@ -623,12 +641,15 @@ watch(viewYear, () => {
               <input
                 v-model="artistSearch"
                 type="text"
-                class="w-full px-3 py-2 pr-8 border rounded-lg text-sm focus:border-pink-400 outline-none"
+                class="w-full px-3 py-2 pr-8 border rounded-lg text-sm focus:border-blue-400 outline-none"
                 placeholder="搜索..."
                 @focus="onArtistSearchFocus"
                 @input="showArtistDropdown = true"
               />
-              <i class="fas fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none" />
+              <i
+                class="fas fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs cursor-pointer hover:text-blue-500"
+                @click.stop="showArtistDropdown = !showArtistDropdown"
+              />
             </div>
             <div
               v-if="showArtistDropdown && filteredArtists.length > 0"
@@ -638,8 +659,8 @@ watch(viewYear, () => {
                 v-for="a in filteredArtists"
                 :key="a.id"
                 :class="[
-                  'px-3 py-2 text-sm cursor-pointer hover:bg-pink-50 transition-colors',
-                  selectedArtist === a.id ? 'bg-pink-50 text-pink-600 font-medium' : 'text-gray-700',
+                  'px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 transition-colors',
+                  selectedArtist === a.id ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700',
                 ]"
                 @mousedown.prevent="selectArtist(a)"
               >
@@ -671,7 +692,7 @@ watch(viewYear, () => {
           <span class="text-sm text-blue-600">
             <i class="fas fa-info-circle mr-1" />已选 {{ dragSelectedDates.length }} 天
           </span>
-          <button class="px-3 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600 disabled:opacity-50" :disabled="saving" @click="confirmBatchWork">
+          <button class="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50" :disabled="saving" @click="confirmBatchWork">
             <i v-if="saving" class="fas fa-spinner fa-spin mr-1" />
             <i v-else class="fas fa-check mr-1" />确认排班
           </button>
@@ -687,7 +708,7 @@ watch(viewYear, () => {
     </div>
 
     <div v-if="loading" class="text-center py-20">
-      <i class="fas fa-spinner fa-spin text-pink-500 text-3xl" />
+      <i class="fas fa-spinner fa-spin text-blue-500 text-3xl" />
     </div>
 
     <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -702,7 +723,7 @@ watch(viewYear, () => {
             <span class="font-bold text-gray-800">{{ viewYear }}年{{ viewMonth + 1 }}月</span>
             <button
               v-if="dragSelectedDates.length > 0"
-              class="text-xs text-pink-500 hover:text-pink-600"
+              class="text-xs text-blue-500 hover:text-blue-600"
               @click="clearSelection"
             >
               (清除选中)
@@ -745,7 +766,7 @@ watch(viewYear, () => {
                 :class="[
                   'font-medium',
                   cell.isPast ? 'text-gray-400' : 'text-gray-700',
-                  cell.isToday ? 'text-pink-500' : '',
+                  cell.isToday ? 'text-blue-500' : '',
                   cell.isHoliday && !cell.isPast ? 'text-amber-600' : '',
                   cell.isWorkday && !cell.isPast ? 'text-green-600' : '',
                   cell.isWeekend && !cell.isPast && !cell.isHoliday && !cell.isWorkday ? 'text-amber-600' : '',
@@ -777,9 +798,14 @@ watch(viewYear, () => {
                 title="整天休息"
               />
               <div
-                v-else-if="cell.hasSchedule"
+                v-else-if="cell.hasSchedule && !cell.isPartial"
                 class="w-2 h-2 rounded-full bg-green-400"
-                title="已排班"
+                title="已排满"
+              />
+              <div
+                v-else-if="cell.hasSchedule && cell.isPartial"
+                class="w-2 h-2 rounded-full bg-yellow-400"
+                title="未排满"
               />
             </div>
           </div>
@@ -787,7 +813,9 @@ watch(viewYear, () => {
 
         <!-- 图例 -->
         <div class="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500">
-          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-400" />已排班</div>
+          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-400" />已排满</div>
+          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-yellow-400" />未排满</div>
+          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-red-400" />整天休息</div>
           <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-blue-400 border border-blue-500" />选中</div>
           <div class="flex items-center gap-1"><span class="text-amber-600 text-[10px]">假</span>节假日</div>
           <div class="flex items-center gap-1"><span class="text-green-600 text-[10px]">班</span>补班日</div>
@@ -799,7 +827,7 @@ watch(viewYear, () => {
       <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <template v-if="editingDate">
           <h3 class="font-bold text-gray-800 mb-2">
-            <i class="fas fa-edit text-pink-500 mr-2" />{{ formatDateDisplay(editingDate) }}
+            <i class="fas fa-edit text-blue-500 mr-2" />{{ formatDateDisplay(editingDate) }}
           </h3>
 
           <!-- 节假日/补班日信息 -->
@@ -811,7 +839,22 @@ watch(viewYear, () => {
           <!-- 营业时间提示 -->
           <div class="mb-3 px-3 py-2 bg-blue-50 rounded-lg text-xs text-blue-700">
             <i class="fas fa-clock mr-1" />
-            默认排班时间：{{ businessStart }} - {{ businessEnd }}
+            营业时间：{{ businessStart }} - {{ businessEnd }}
+          </div>
+
+          <!-- 整天休息切换 -->
+          <div class="mb-3">
+            <label class="flex items-center gap-2 cursor-pointer" @click="toggleFullOff">
+              <div
+                :class="[
+                  'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
+                  editingDateFullOff ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-gray-300',
+                ]"
+              >
+                <i v-if="editingDateFullOff" class="fas fa-check text-[10px]" />
+              </div>
+              <span class="text-sm font-medium text-gray-700">整天休息</span>
+            </label>
           </div>
 
           <!-- 时间段 -->
@@ -840,9 +883,16 @@ watch(viewYear, () => {
                 </div>
                 <span class="font-mono text-gray-700 min-w-[45px]">{{ slot }}</span>
                 <span :class="['text-xs', isSlotAvailable(slot) ? 'text-green-600' : 'text-red-600']">
-                  {{ isSlotAvailable(slot) ? '可预约' : '不可用' }}
+                  {{ isSlotAvailable(slot) ? '可预约' : '不可预约' }}
                 </span>
               </div>
+            </div>
+          </div>
+
+          <!-- 操作提示 -->
+          <div class="mt-4 pt-3 border-t border-gray-100">
+            <div class="text-xs text-gray-500">
+              <i class="fas fa-info-circle mr-1" />点击时间段切换可预约状态，点击"确认排班"保存到数据库
             </div>
           </div>
         </template>

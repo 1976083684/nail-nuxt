@@ -4,15 +4,17 @@ const { currentUser, loginCallback } = useAuth()
 const { openLogin, openImagePreview } = useModal()
 const { showToast } = useToast()
 
-const galleryFilter = ref('全部')
+const galleryFilter = ref('all')
 const galleryPage = ref(1)
 const PER_PAGE = 8
 
-const GALLERY_CATS = ['全部', '经典护理', '凝胶美甲', '法式优雅', '艺术彩绘', '日式花艺', '3D立体甲']
+// 从数据库加载分类
+const { data: categoriesData } = await useFetch('/api/gallery-categories')
+const categories = computed(() => (categoriesData.value as any[]) || [])
 
 const { data: galleryData, refresh } = await useFetch('/api/gallery', {
   query: computed(() => ({
-    category: galleryFilter.value,
+    categoryId: galleryFilter.value,
     page: galleryPage.value,
     perPage: PER_PAGE,
     userId: currentUser.value?.id || '',
@@ -23,9 +25,9 @@ const items = computed(() => (galleryData.value as any)?.items || [])
 const total = computed(() => (galleryData.value as any)?.total || 0)
 const totalPages = computed(() => Math.ceil(total.value / PER_PAGE))
 
-function setFilter(cat: string) {
-  if (galleryFilter.value === cat) return
-  galleryFilter.value = cat
+function setFilter(catId: string) {
+  if (galleryFilter.value === catId) return
+  galleryFilter.value = catId
   galleryPage.value = 1
 }
 
@@ -68,13 +70,20 @@ async function doLike(itemId: number) {
       <!-- Filters -->
       <div class="flex flex-wrap justify-center gap-2 mb-8">
         <div
-          v-for="cat in GALLERY_CATS"
-          :key="cat"
           class="filter-tag"
-          :class="{ active: galleryFilter === cat }"
-          @click="setFilter(cat)"
+          :class="{ active: galleryFilter === 'all' }"
+          @click="setFilter('all')"
         >
-          {{ cat }}
+          全部
+        </div>
+        <div
+          v-for="cat in categories"
+          :key="cat.id"
+          class="filter-tag"
+          :class="{ active: galleryFilter === String(cat.id) }"
+          @click="setFilter(String(cat.id))"
+        >
+          {{ cat.name }}
         </div>
       </div>
 
@@ -98,7 +107,7 @@ async function doLike(itemId: number) {
           <div class="overlay">
             <div>
               <p class="text-xs md:text-sm font-bold text-white">{{ item.title }}</p>
-              <p class="text-[10px] md:text-xs" style="color: var(--accent-light)">{{ item.category }}</p>
+              <p class="text-[10px] md:text-xs" style="color: var(--accent-light)">{{ item.category_name }}</p>
             </div>
           </div>
         </div>

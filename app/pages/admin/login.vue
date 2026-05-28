@@ -27,8 +27,8 @@ async function handleLogin() {
     <div class="w-full max-w-md">
       <!-- Logo -->
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-pink-500/20 rounded-2xl mb-4">
-          <i class="fas fa-gem text-pink-400 text-3xl" />
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-500/20 rounded-2xl mb-4">
+          <i class="fas fa-gem text-blue-400 text-3xl" />
         </div>
         <h1 class="text-2xl font-bold text-white tracking-wide">LUXE NAIL</h1>
         <p class="text-gray-400 mt-1">管理后台</p>
@@ -46,7 +46,7 @@ async function handleLogin() {
                 v-model="username"
                 type="text"
                 placeholder="请输入用户名"
-                class="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none transition-colors"
+                class="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition-colors"
                 autocomplete="username"
               />
             </div>
@@ -61,7 +61,7 @@ async function handleLogin() {
                 v-model="password"
                 :type="showPassword ? 'text' : 'password'"
                 placeholder="请输入密码"
-                class="w-full pl-11 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none transition-colors"
+                class="w-full pl-11 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition-colors"
                 autocomplete="current-password"
               />
               <button
@@ -84,7 +84,7 @@ async function handleLogin() {
           <button
             type="submit"
             :disabled="loading"
-            class="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <i v-if="loading" class="fas fa-spinner fa-spin mr-2" />
             {{ loading ? '登录中...' : '登 录' }}

@@ -3,6 +3,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
 
 const artists = ref<any[]>([])
 const schedules = ref<any[]>([])
+const totalSlots = ref(0)
 const viewYear = ref(new Date().getFullYear())
 const viewMonth = ref(new Date().getMonth())
 const loading = ref(false)
@@ -14,6 +15,7 @@ const hoverY = ref(0)
 
 // 点击选中日期详情
 const selectedDate = ref<string | null>(null)
+const selectedArtistId = ref<number | null>(null)
 
 const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -29,7 +31,7 @@ const calendarDays = computed(() => {
     dateStr: string | null
     isToday: boolean
     isSelected: boolean
-    artists: Array<{ id: number; name: string; hasFullOff: boolean; hasPartialOff: boolean }>
+    artists: Array<{ id: number; name: string; hasFullOff: boolean; isFull: boolean; isPartial: boolean }>
   }> = []
 
   for (let i = 0; i < firstDay; i++) {
@@ -44,21 +46,28 @@ const calendarDays = computed(() => {
 
     // 当天排班的美甲师
     const dayEntries = schedules.value.filter(s => {
-      const sd = typeof s.date === 'string' ? s.date.split('T')[0] : new Date(s.date).toISOString().split('T')[0]
+      const sd = String(s.date).substring(0, 10)
       return sd === dateStr
     })
 
-    const artistMap = new Map<number, { name: string; hasFullOff: boolean; hasPartialOff: boolean }>()
+    const artistMap = new Map<number, { name: string; hasFullOff: boolean; slotCount: number; unavailableCount: number }>()
     for (const entry of dayEntries) {
       const aid = entry.artist_id
       if (!artistMap.has(aid)) {
-        artistMap.set(aid, { name: entry.artist_name || `美甲师${aid}`, hasFullOff: false, hasPartialOff: false })
+        artistMap.set(aid, { name: entry.artist_name || `美甲师${aid}`, hasFullOff: false, slotCount: 0, unavailableCount: 0 })
       }
       const info = artistMap.get(aid)!
       if (!entry.time_slot) info.hasFullOff = true
-      else info.hasPartialOff = true
+      else {
+        info.slotCount++
+        if (entry.is_unavailable) info.unavailableCount++
+      }
     }
-    const artistList = Array.from(artistMap.entries()).map(([id, info]) => ({ id, ...info }))
+    const artistList = Array.from(artistMap.entries()).map(([id, info]) => {
+      const isFull = !info.hasFullOff && info.slotCount > 0 && info.unavailableCount === 0
+      const isPartial = !info.hasFullOff && info.slotCount > 0 && !isFull
+      return { id, name: info.name, hasFullOff: info.hasFullOff, isFull, isPartial }
+    })
 
     days.push({ day: d, dateStr, isToday, isSelected, artists: artistList })
   }
@@ -70,7 +79,7 @@ const calendarDays = computed(() => {
 const selectedDateSchedules = computed(() => {
   if (!selectedDate.value) return []
   return schedules.value.filter(s => {
-    const d = typeof s.date === 'string' ? s.date.split('T')[0] : new Date(s.date).toISOString().split('T')[0]
+    const d = String(s.date).substring(0, 10)
     return d === selectedDate.value
   }).sort((a, b) => {
     if (!a.time_slot && b.time_slot) return -1
@@ -97,12 +106,28 @@ async function loadData() {
   try {
     const startDate = `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-01`
     const endDate = `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, '0')}-${new Date(viewYear.value, viewMonth.value + 1, 0).getDate()}`
-    const [a, s] = await Promise.all([
+    const [a, s, settings] = await Promise.all([
       $fetch<any[]>('/api/admin/artists'),
       $fetch<any[]>('/api/admin/schedules', { query: { startDate, endDate } }),
+      $fetch<any[]>('/api/admin/settings'),
     ])
     artists.value = a
     schedules.value = s
+
+    // 计算总时间段数
+    const startH = settings.find((s: any) => s.setting_key === 'business_hours_start')?.setting_value || '10:00'
+    const endH = settings.find((s: any) => s.setting_key === 'business_hours_end')?.setting_value || '19:00'
+    const duration = Number(settings.find((s: any) => s.setting_key === 'slot_duration')?.setting_value) || 30
+    const [sh, sm] = startH.split(':').map(Number)
+    const [eh, em] = endH.split(':').map(Number)
+    let count = 0
+    let minutes = sh * 60 + sm
+    const endMinutes = eh * 60 + em
+    while (minutes < endMinutes) {
+      count++
+      minutes += duration
+    }
+    totalSlots.value = count
   } catch (e) {
     console.error('加载数据失败:', e)
   }
@@ -114,6 +139,7 @@ function changeMonth(delta: number) {
   if (viewMonth.value > 11) { viewMonth.value = 0; viewYear.value++ }
   if (viewMonth.value < 0) { viewMonth.value = 11; viewYear.value-- }
   selectedDate.value = null
+  selectedArtistId.value = null
   hoverDate.value = null
   loadData()
 }
@@ -131,7 +157,18 @@ function onCellMouseLeave() {
 }
 
 function selectDate(dateStr: string) {
-  selectedDate.value = selectedDate.value === dateStr ? null : dateStr
+  if (selectedDate.value === dateStr) {
+    selectedDate.value = null
+    selectedArtistId.value = null
+    return
+  }
+  selectedDate.value = dateStr
+  // 自动选中第一个有排班的美甲师
+  nextTick(() => {
+    selectedArtistId.value = selectedDateByArtist.value.length > 0
+      ? selectedDateByArtist.value[0].id
+      : null
+  })
 }
 
 function formatDateDisplay(dateStr: string) {
@@ -144,19 +181,26 @@ function formatDateDisplay(dateStr: string) {
 const hoverArtists = computed(() => {
   if (!hoverDate.value) return []
   const entries = schedules.value.filter(s => {
-    const d = typeof s.date === 'string' ? s.date.split('T')[0] : new Date(s.date).toISOString().split('T')[0]
+    const d = String(s.date).substring(0, 10)
     return d === hoverDate.value
   })
-  const map = new Map<number, { name: string; hasFullOff: boolean; hasPartialOff: boolean }>()
+  const map = new Map<number, { name: string; hasFullOff: boolean; slotCount: number; unavailableCount: number }>()
   for (const e of entries) {
     if (!map.has(e.artist_id)) {
-      map.set(e.artist_id, { name: e.artist_name || `美甲师${e.artist_id}`, hasFullOff: false, hasPartialOff: false })
+      map.set(e.artist_id, { name: e.artist_name || `美甲师${e.artist_id}`, hasFullOff: false, slotCount: 0, unavailableCount: 0 })
     }
     const info = map.get(e.artist_id)!
     if (!e.time_slot) info.hasFullOff = true
-    else info.hasPartialOff = true
+    else {
+      info.slotCount++
+      if (e.is_unavailable) info.unavailableCount++
+    }
   }
-  return Array.from(map.entries()).map(([id, info]) => ({ id, ...info }))
+  return Array.from(map.entries()).map(([id, info]) => {
+    const isFull = !info.hasFullOff && info.slotCount > 0 && info.unavailableCount === 0
+    const isPartial = !info.hasFullOff && info.slotCount > 0 && !isFull
+    return { id, name: info.name, hasFullOff: info.hasFullOff, isFull, isPartial }
+  })
 })
 
 onMounted(loadData)
@@ -167,12 +211,12 @@ onMounted(loadData)
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-gray-800">
-        <i class="fas fa-calendar-alt text-pink-500 mr-2" />排班总览
+        <i class="fas fa-calendar-alt text-blue-500 mr-2" />排班总览
       </h2>
       <div class="flex gap-2">
         <NuxtLink
           to="/admin/schedules/create"
-          class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600"
+          class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
         >
           <i class="fas fa-plus mr-1" />新增排班
         </NuxtLink>
@@ -186,7 +230,7 @@ onMounted(loadData)
     </div>
 
     <div v-if="loading" class="text-center py-20">
-      <i class="fas fa-spinner fa-spin text-pink-500 text-3xl" />
+      <i class="fas fa-spinner fa-spin text-blue-500 text-3xl" />
     </div>
 
     <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -215,9 +259,9 @@ onMounted(loadData)
             :key="i"
             :class="[
               'relative p-2 min-h-[80px] rounded-lg text-sm transition-all border-2',
-              cell.day === null ? 'border-transparent' : 'border-gray-100 hover:border-pink-300 cursor-pointer',
-              cell.isToday ? 'ring-1 ring-pink-300' : '',
-              cell.isSelected ? 'border-pink-500 bg-pink-50' : '',
+              cell.day === null ? 'border-transparent' : 'border-gray-100 hover:border-blue-300 cursor-pointer',
+              cell.isToday ? 'ring-1 ring-blue-300' : '',
+              cell.isSelected ? 'border-blue-500 bg-blue-50' : '',
             ]"
             @click="cell.day && cell.dateStr && selectDate(cell.dateStr)"
             @mouseenter="cell.day && cell.dateStr && onCellMouseEnter($event, cell.dateStr)"
@@ -225,35 +269,26 @@ onMounted(loadData)
           >
             <span
               v-if="cell.day"
-              :class="['font-medium', cell.isToday ? 'text-pink-500' : 'text-gray-700']"
+              :class="['font-medium', cell.isToday ? 'text-blue-500' : 'text-gray-700']"
             >
               {{ cell.day }}
             </span>
-            <!-- 美甲师指示点 -->
-            <div v-if="cell.artists.length > 0" class="flex flex-wrap gap-1 mt-1">
-              <div
-                v-for="a in cell.artists.slice(0, 4)"
-                :key="a.id"
-                :class="[
-                  'w-2 h-2 rounded-full',
-                  a.hasFullOff ? 'bg-red-400' : a.hasPartialOff ? 'bg-orange-400' : 'bg-green-400',
-                ]"
-                :title="a.name"
-              />
-              <span v-if="cell.artists.length > 4" class="text-[10px] text-gray-400">+{{ cell.artists.length - 4 }}</span>
-            </div>
-            <!-- 美甲师名字（简略） -->
-            <div v-if="cell.artists.length > 0" class="mt-0.5 space-y-0.5">
-              <div
-                v-for="a in cell.artists.slice(0, 2)"
-                :key="a.id"
-                class="text-[10px] truncate"
-                :class="a.hasFullOff ? 'text-red-500' : 'text-gray-500'"
-              >
-                {{ a.name }}
-              </div>
-              <div v-if="cell.artists.length > 2" class="text-[10px] text-gray-400">
-                +{{ cell.artists.length - 2 }}人
+            <!-- 美甲师指示（单点+名字） -->
+            <div v-if="cell.artists.length > 0" class="mt-1">
+              <div class="flex items-center gap-1">
+                <div
+                  :class="[
+                    'w-2 h-2 rounded-full flex-shrink-0',
+                    cell.artists.some(a => a.hasFullOff) ? 'bg-red-400' :
+                    cell.artists.some(a => a.isPartial) ? 'bg-yellow-400' : 'bg-green-400',
+                  ]"
+                />
+                <span
+                  class="text-[10px] truncate"
+                  :class="cell.artists.some(a => a.hasFullOff) ? 'text-red-500' : cell.artists.some(a => a.isPartial) ? 'text-yellow-600' : 'text-gray-500'"
+                >
+                  {{ cell.artists[0].name }}<span v-if="cell.artists.length > 1" class="text-gray-400">...</span>
+                </span>
               </div>
             </div>
           </div>
@@ -261,8 +296,8 @@ onMounted(loadData)
 
         <!-- 图例 -->
         <div class="flex items-center gap-4 mt-4 text-xs text-gray-500">
-          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-400" />全天排班</div>
-          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-orange-400" />部分时段</div>
+          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-400" />已排满</div>
+          <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-yellow-400" />未排满</div>
           <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-red-400" />整天休息</div>
         </div>
       </div>
@@ -271,48 +306,67 @@ onMounted(loadData)
       <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <template v-if="selectedDate">
           <h3 class="font-bold text-gray-800 mb-4">
-            <i class="fas fa-users text-pink-500 mr-2" />{{ formatDateDisplay(selectedDate) }} 排班详情
+            <i class="fas fa-users text-blue-500 mr-2" />{{ formatDateDisplay(selectedDate) }} 排班详情
           </h3>
 
           <div v-if="selectedDateByArtist.length === 0" class="text-center py-8 text-gray-400 text-sm">
             当日暂无排班记录
           </div>
 
-          <div v-else class="space-y-3 max-h-[500px] overflow-y-auto">
-            <div
-              v-for="artist in selectedDateByArtist"
-              :key="artist.id"
-              class="p-3 rounded-lg border border-gray-100 hover:border-pink-200 transition-colors"
-            >
-              <div class="flex items-center gap-2 mb-2">
-                <div class="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center">
-                  <i class="fas fa-user text-pink-500 text-xs" />
-                </div>
-                <span class="font-medium text-gray-800 text-sm">{{ artist.name }}</span>
-              </div>
-              <div class="space-y-1 ml-8">
-                <div
-                  v-for="entry in artist.entries"
-                  :key="entry.id"
-                  class="flex items-center gap-2 text-xs"
+          <template v-else>
+            <!-- 美甲师按钮横向滚动 -->
+            <div class="mb-4 overflow-x-auto pb-2" :class="{ 'max-w-full': selectedDateByArtist.length > 5 }">
+              <div class="flex gap-2" :style="selectedDateByArtist.length > 5 ? 'min-width: max-content' : ''">
+                <button
+                  v-for="artist in selectedDateByArtist"
+                  :key="artist.id"
+                  :class="[
+                    'px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors',
+                    selectedArtistId === artist.id
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                  ]"
+                  @click="selectedArtistId = selectedArtistId === artist.id ? null : artist.id"
                 >
-                  <span
-                    v-if="!entry.time_slot"
-                    class="px-1.5 py-0.5 bg-red-100 text-red-600 rounded"
-                  >
-                    整天休息
-                  </span>
-                  <span
-                    v-else
-                    class="px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-mono"
-                  >
-                    {{ entry.time_slot }} 不可用
-                  </span>
-                  <span v-if="entry.reason" class="text-gray-400">{{ entry.reason }}</span>
-                </div>
+                  {{ artist.name }}
+                </button>
               </div>
             </div>
-          </div>
+
+            <!-- 选中美甲师的详情 -->
+            <div v-if="selectedArtistId" class="space-y-2">
+              <div
+                v-for="entry in (selectedDateByArtist.find(a => a.id === selectedArtistId)?.entries || [])"
+                :key="entry.id"
+                class="flex items-center gap-2 text-sm p-2 bg-gray-50 rounded-lg"
+              >
+                <span
+                  v-if="!entry.time_slot"
+                  class="px-2 py-1 bg-red-100 text-red-600 rounded text-xs"
+                >
+                  整天休息
+                </span>
+                <span
+                  v-else-if="entry.is_unavailable"
+                  class="px-2 py-1 bg-yellow-100 text-yellow-600 rounded font-mono text-xs"
+                >
+                  {{ entry.time_slot }} 不可预约
+                </span>
+                <span
+                  v-else
+                  class="px-2 py-1 bg-green-100 text-green-600 rounded font-mono text-xs"
+                >
+                  {{ entry.time_slot }} 可预约
+                </span>
+                <span v-if="entry.reason" class="text-gray-400 text-xs">{{ entry.reason }}</span>
+              </div>
+            </div>
+
+            <!-- 未选中时的提示 -->
+            <div v-else class="text-center py-4 text-gray-400 text-sm">
+              点击上方美甲师按钮查看详情
+            </div>
+          </template>
         </template>
 
         <template v-else>
@@ -341,12 +395,12 @@ onMounted(loadData)
               <span
                 :class="[
                   'w-2 h-2 rounded-full flex-shrink-0',
-                  a.hasFullOff ? 'bg-red-400' : a.hasPartialOff ? 'bg-orange-400' : 'bg-green-400',
+                  a.hasFullOff ? 'bg-red-400' : a.isPartial ? 'bg-yellow-400' : 'bg-green-400',
                 ]"
               />
               <span>{{ a.name }}</span>
               <span v-if="a.hasFullOff" class="text-red-300">(休息)</span>
-              <span v-else-if="a.hasPartialOff" class="text-orange-300">(部分)</span>
+              <span v-else-if="a.isPartial" class="text-yellow-300">(未排满)</span>
             </div>
           </div>
           <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-gray-900" />

@@ -1,7 +1,7 @@
 import { query } from '../../utils/db'
 
 export default defineEventHandler(async () => {
-  const nail_artists = await query('SELECT * FROM nail_artists ORDER BY sort_order')
+  const nail_artists = await query('SELECT id, name, title, rating, experience_years, specialty, image_url, bio, sort_order FROM nail_artists ORDER BY sort_order')
 
   for (const art of nail_artists as any[]) {
     art.certs = await query(

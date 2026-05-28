@@ -1,6 +1,5 @@
 <script setup lang="ts">
-const { showArtistDetail, closeArtistDetail, selectedArtistId, openImagePreview } = useModal()
-const { openBooking } = useModal()
+const { showArtistDetail, closeArtistDetail, selectedArtistId, openImagePreview, openBooking, openLogin } = useModal()
 const { resetBooking } = useBooking()
 const { currentUser, loginCallback } = useAuth()
 
@@ -18,6 +17,7 @@ function handleBook() {
       closeArtistDetail()
       openBooking()
     }
+    openLogin()
     return
   }
   resetBooking({ artistId: artist.value.id })

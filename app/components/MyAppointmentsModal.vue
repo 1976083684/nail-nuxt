@@ -36,12 +36,13 @@ function formatDate(dateStr: string) {
 }
 
 async function cancelAppointment(id: number) {
+  if (!confirm('确定要取消这个预约吗？')) return
   try {
     await $fetch(`/api/appointments/${id}/cancel`, { method: 'POST' })
     await refresh()
     showToast('预约已取消', 'info')
-  } catch {
-    showToast('取消失败', 'error')
+  } catch (e: any) {
+    showToast(e?.data?.message || '取消失败', 'error')
   }
 }
 </script>

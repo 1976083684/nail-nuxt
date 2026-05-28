@@ -3,11 +3,11 @@ import { query } from '../../../utils/db'
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   const body = await readBody(event)
-  const { name, title, rating, experience_years, specialty, image_url, bio, certifications, works } = body
+  const { name, title, phone, rating, experience_years, specialty, image_url, bio, certifications, works } = body
 
   await query(
-    'UPDATE nail_artists SET name=?, title=?, rating=?, experience_years=?, specialty=?, image_url=?, bio=? WHERE id=?',
-    [name, title, rating || 5.0, experience_years || 0, specialty || '', image_url || '', bio || '', id]
+    'UPDATE nail_artists SET name=?, title=?, phone=?, rating=?, experience_years=?, specialty=?, image_url=?, bio=? WHERE id=?',
+    [name, title, phone || '', rating || 5.0, experience_years || 0, specialty || '', image_url || '', bio || '', id]
   )
 
   if (certifications !== undefined) {

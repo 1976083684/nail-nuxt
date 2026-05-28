@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { get } = useSiteContent()
 const { data: services } = await useFetch('/api/services')
-const { openServiceDetail, openBooking } = useModal()
+const { openServiceDetail, openBooking, openLogin } = useModal()
 const { resetBooking } = useBooking()
 const { currentUser, loginCallback } = useAuth()
 
@@ -11,6 +11,7 @@ function handleBookService(id: number) {
       resetBooking({ serviceId: id })
       openBooking()
     }
+    openLogin()
     return
   }
   resetBooking({ serviceId: id })

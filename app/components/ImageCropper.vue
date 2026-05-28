@@ -299,10 +299,10 @@ function clearImage() {
       <!-- Upload buttons -->
       <div v-if="!previewUrl" class="flex gap-2">
         <div
-          class="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-pink-400 transition-colors"
+          class="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 transition-colors"
           @click="triggerUpload"
         >
-          <i v-if="uploading" class="fas fa-spinner fa-spin text-pink-400 text-xl mb-1" />
+          <i v-if="uploading" class="fas fa-spinner fa-spin text-blue-400 text-xl mb-1" />
           <i v-else class="fas fa-cloud-upload-alt text-gray-400 text-xl mb-1" />
           <span class="text-[10px] text-gray-400">{{ shouldCrop ? '直接上传' : '上传图片' }}</span>
         </div>
@@ -321,7 +321,7 @@ function clearImage() {
         <input
           :value="modelValue"
           @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-          class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none"
+          class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none"
           placeholder="或输入图片URL"
         />
       </div>
@@ -355,7 +355,7 @@ function clearImage() {
           <div class="flex justify-end gap-3 p-4 border-t">
             <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200" @click="closeCropper">取消</button>
             <button
-              class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600 disabled:opacity-50"
+              class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50"
               :disabled="uploading"
               @click="cropAndUpload"
             >

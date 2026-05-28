@@ -4,27 +4,32 @@ export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const page = Number(q.page) || 1
   const pageSize = Number(q.pageSize) || 12
-  const category = q.category as string
+  const categoryId = q.categoryId as string
 
   let whereClause = 'WHERE 1=1'
   const whereParams: any[] = []
 
-  if (category && category !== '全部') {
-    whereClause += ' AND category = ?'
-    whereParams.push(category)
+  if (categoryId && categoryId !== 'all') {
+    whereClause += ' AND gi.category_id = ?'
+    whereParams.push(categoryId)
   }
 
   // 统计总数
   const countRow = await queryOne<any>(
-    `SELECT COUNT(*) as total FROM nail_gallery_items ${whereClause}`,
+    `SELECT COUNT(*) as total FROM nail_gallery_items gi ${whereClause}`,
     whereParams
   )
   const total = countRow?.total || 0
 
-  // 查询列表
+  // 查询列表（关联分类表）
   const offset = (page - 1) * pageSize
   const items = await query(
-    `SELECT * FROM nail_gallery_items ${whereClause} ORDER BY sort_order LIMIT ${pageSize} OFFSET ${offset}`,
+    `SELECT gi.*, gc.name as category_name
+     FROM nail_gallery_items gi
+     LEFT JOIN nail_gallery_categories gc ON gi.category_id = gc.id
+     ${whereClause}
+     ORDER BY gi.sort_order
+     LIMIT ${pageSize} OFFSET ${offset}`,
     whereParams
   )
 

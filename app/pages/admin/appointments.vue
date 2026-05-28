@@ -9,6 +9,7 @@ const status = ref('')
 const date = ref('')
 const keyword = ref('')
 const loading = ref(false)
+const { showToast } = useToast()
 
 async function load() {
   loading.value = true
@@ -27,21 +28,29 @@ async function load() {
 }
 
 async function updateStatus(id: number, newStatus: string) {
+  const label = newStatus === 'completed' ? '完成' : '取消'
+  if (!confirm(`确定要${label}这条预约吗？`)) return
   try {
     await $fetch(`/api/admin/appointments/${id}`, {
       method: 'PATCH',
       body: { status: newStatus },
     })
+    showToast('状态更新成功', 'success')
     load()
-  } catch {}
+  } catch (e: any) {
+    showToast(e?.data?.message || '操作失败', 'error')
+  }
 }
 
 async function remove(id: number) {
   if (!confirm('确定要删除这条预约吗？')) return
   try {
     await $fetch(`/api/admin/appointments/${id}`, { method: 'DELETE' })
+    showToast('删除成功', 'success')
     load()
-  } catch {}
+  } catch (e: any) {
+    showToast(e?.data?.message || '删除失败', 'error')
+  }
 }
 
 function resetFilters() {
@@ -75,7 +84,7 @@ onMounted(load)
       <div class="flex flex-wrap gap-4 items-end">
         <div>
           <label class="block text-sm text-gray-600 mb-1">状态</label>
-          <select v-model="status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-pink-400 outline-none">
+          <select v-model="status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-400 outline-none">
             <option value="">全部</option>
             <option value="upcoming">待服务</option>
             <option value="completed">已完成</option>
@@ -84,14 +93,14 @@ onMounted(load)
         </div>
         <div>
           <label class="block text-sm text-gray-600 mb-1">日期</label>
-          <input v-model="date" type="date" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-pink-400 outline-none" />
+          <input v-model="date" type="date" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-400 outline-none" />
         </div>
         <div>
           <label class="block text-sm text-gray-600 mb-1">关键词</label>
-          <input v-model="keyword" type="text" placeholder="客户名/电话" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-pink-400 outline-none w-40" />
+          <input v-model="keyword" type="text" placeholder="客户名/电话" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-400 outline-none w-40" />
         </div>
         <div class="flex gap-2">
-          <button class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600" @click="page = 1; load()">
+          <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="page = 1; load()">
             <i class="fas fa-search mr-1" />搜索
           </button>
           <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200" @click="resetFilters">
@@ -159,7 +168,7 @@ onMounted(load)
         </table>
         <p v-if="!items.length && !loading" class="text-center py-8 text-gray-400">暂无预约记录</p>
         <div v-if="loading" class="text-center py-8">
-          <i class="fas fa-spinner fa-spin text-pink-500 text-xl" />
+          <i class="fas fa-spinner fa-spin text-blue-500 text-xl" />
         </div>
       </div>
 
@@ -177,7 +186,7 @@ onMounted(load)
           <button
             v-for="p in totalPages"
             :key="p"
-            :class="['px-3 py-1 text-sm border rounded', p === page ? 'bg-pink-500 text-white border-pink-500' : 'hover:bg-gray-50']"
+            :class="['px-3 py-1 text-sm border rounded', p === page ? 'bg-blue-500 text-white border-blue-500' : 'hover:bg-gray-50']"
             @click="page = p"
           >
             {{ p }}

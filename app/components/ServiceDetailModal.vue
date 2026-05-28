@@ -1,6 +1,5 @@
 <script setup lang="ts">
-const { showServiceDetail, closeServiceDetail, selectedServiceId } = useModal()
-const { openBooking } = useModal()
+const { showServiceDetail, closeServiceDetail, selectedServiceId, openBooking, openLogin } = useModal()
 const { resetBooking } = useBooking()
 const { currentUser, loginCallback } = useAuth()
 
@@ -33,6 +32,7 @@ function handleBook() {
       closeServiceDetail()
       openBooking()
     }
+    openLogin()
     return
   }
   resetBooking({ serviceId: service.value.id })

@@ -21,6 +21,7 @@ const editId = ref<number | null>(null)
 const form = ref({ parent_id: null as number | null, name: '', perm_key: '', icon: '', route: '', sort_order: 0, is_visible: true })
 const formError = ref('')
 const expandedIds = ref<Set<number>>(new Set())
+const { showToast } = useToast()
 
 async function load() {
   loading.value = true
@@ -90,6 +91,7 @@ async function save() {
       await $fetch('/api/admin/menus', { method: 'POST', body })
     }
     editing.value = false
+    showToast('保存成功', 'success')
     load()
   } catch (e: any) {
     formError.value = e?.data?.message || '保存失败'
@@ -100,9 +102,10 @@ async function remove(id: number) {
   if (!confirm('确定要删除此菜单吗？子菜单也会一并删除。')) return
   try {
     await $fetch(`/api/admin/menus/${id}`, { method: 'DELETE' })
+    showToast('删除成功', 'success')
     load()
   } catch (e: any) {
-    alert(e?.data?.message || '删除失败')
+    showToast(e?.data?.message || '删除失败', 'error')
   }
 }
 
@@ -113,14 +116,14 @@ onMounted(load)
   <div>
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-gray-800">菜单管理</h2>
-      <button class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600" @click="openNew()">
+      <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="openNew()">
         <i class="fas fa-plus mr-1" />添加菜单
       </button>
     </div>
 
     <!-- Loading -->
     <div v-if="loading" class="text-center py-12">
-      <i class="fas fa-spinner fa-spin text-pink-500 text-2xl" />
+      <i class="fas fa-spinner fa-spin text-blue-500 text-2xl" />
     </div>
 
     <!-- Empty -->
@@ -250,7 +253,7 @@ onMounted(load)
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">父菜单</label>
-            <select v-model="form.parent_id" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none">
+            <select v-model="form.parent_id" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none">
               <option :value="null">无（顶级菜单）</option>
               <option v-for="p in flatItems.filter(i => i.level === 0)" :key="p.id" :value="p.id">
                 {{ p.name }}
@@ -259,28 +262,28 @@ onMounted(load)
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">菜单名称</label>
-            <input v-model="form.name" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" placeholder="如：数据看板" />
+            <input v-model="form.name" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" placeholder="如：数据看板" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">权限标识</label>
-            <input v-model="form.perm_key" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none font-mono" placeholder="如：dashboard" />
+            <input v-model="form.perm_key" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none font-mono" placeholder="如：dashboard" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">图标</label>
-            <input v-model="form.icon" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none font-mono" placeholder="如：fas fa-chart-pie" />
+            <input v-model="form.icon" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none font-mono" placeholder="如：fas fa-chart-pie" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">路由路径</label>
-            <input v-model="form.route" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none font-mono" placeholder="如：/admin" />
+            <input v-model="form.route" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none font-mono" placeholder="如：/admin" />
           </div>
           <div class="flex gap-4">
             <div class="flex-1">
               <label class="block text-sm font-medium text-gray-700 mb-1">排序</label>
-              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" />
+              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" />
             </div>
             <div class="flex items-end pb-1">
               <label class="flex items-center gap-2 cursor-pointer">
-                <input v-model="form.is_visible" type="checkbox" class="w-4 h-4 text-pink-500 rounded" />
+                <input v-model="form.is_visible" type="checkbox" class="w-4 h-4 text-blue-500 rounded" />
                 <span class="text-sm text-gray-700">可见</span>
               </label>
             </div>
@@ -291,7 +294,7 @@ onMounted(load)
         </div>
         <div class="flex justify-end gap-3 mt-6">
           <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200" @click="editing = false">取消</button>
-          <button class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600" @click="save">保存</button>
+          <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="save">保存</button>
         </div>
       </div>
     </div>

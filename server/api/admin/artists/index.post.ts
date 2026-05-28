@@ -2,15 +2,15 @@ import { query } from '../../../utils/db'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { name, title, rating, experience_years, specialty, image_url, bio, certifications, works } = body
+  const { name, title, phone, rating, experience_years, specialty, image_url, bio, certifications, works } = body
 
   if (!name || !title) {
     throw createError({ statusCode: 400, message: '缺少必要参数' })
   }
 
   const result = await query<any>(
-    'INSERT INTO nail_artists (name, title, rating, experience_years, specialty, image_url, bio) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [name, title, rating || 5.0, experience_years || 0, specialty || '', image_url || '', bio || '']
+    'INSERT INTO nail_artists (name, title, phone, rating, experience_years, specialty, image_url, bio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [name, title, phone || '', rating || 5.0, experience_years || 0, specialty || '', image_url || '', bio || '']
   )
   const artistId = result.insertId
 

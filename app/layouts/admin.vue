@@ -37,14 +37,14 @@ function toggleExpand(id: number) {
   }
 }
 
-function isActive(path: string) {
-  if (path === '/admin') return route.path === '/admin'
+function isActive(path: string, exact = false) {
+  if (exact) return route.path === path
   return route.path === path || route.path.startsWith(path + '/')
 }
 
 function isParentActive(item: MenuItem) {
-  if (item.route && isActive(item.route)) return true
-  return item.children?.some(c => isActive(c.route)) || false
+  if (item.route && isActive(item.route, true)) return true
+  return false
 }
 
 function toggleSidebar() {
@@ -54,10 +54,10 @@ function toggleSidebar() {
 const currentPageTitle = computed(() => {
   for (const item of navItems.value) {
     if (item.children) {
-      const child = item.children.find(c => isActive(c.route))
+      const child = item.children.find(c => isActive(c.route, true))
       if (child) return child.name
     }
-    if (item.route && isActive(item.route)) return item.name
+    if (item.route && isActive(item.route, true)) return item.name
   }
   return '管理后台'
 })
@@ -121,7 +121,7 @@ async function changePassword() {
     >
       <!-- Logo -->
       <div class="h-16 flex items-center px-6 border-b border-gray-800 shrink-0">
-        <i class="fas fa-gem text-pink-400 text-xl" />
+        <i class="fas fa-gem text-blue-400 text-xl" />
         <span v-if="sidebarOpen" class="ml-3 text-lg font-semibold tracking-wide">
           LUXE NAIL
         </span>
@@ -133,12 +133,7 @@ async function changePassword() {
           <!-- 有子菜单的项目 -->
           <div v-if="item.children && item.children.length > 0">
             <button
-              :class="[
-                'w-full flex items-center px-6 py-3 text-sm transition-colors relative',
-                isParentActive(item)
-                  ? 'bg-pink-500/20 text-pink-400 border-r-2 border-pink-400'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800',
-              ]"
+              class="w-full flex items-center px-6 py-3 text-sm transition-colors relative text-gray-400 hover:text-white hover:bg-gray-800"
               @click="toggleExpand(item.id)"
             >
               <i :class="item.icon" class="text-lg w-6 text-center" />
@@ -158,8 +153,8 @@ async function changePassword() {
                   :to="child.route"
                   :class="[
                     'flex items-center pl-14 pr-6 py-2.5 text-sm transition-colors',
-                    isActive(child.route)
-                      ? 'text-pink-400 bg-pink-500/10'
+                    isActive(child.route, true)
+                      ? 'text-blue-400 bg-blue-500/10'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800',
                   ]"
                   @click="mobileOpen = false"
@@ -177,8 +172,8 @@ async function changePassword() {
             :to="item.route"
             :class="[
               'flex items-center px-6 py-3 text-sm transition-colors relative',
-              isActive(item.route)
-                ? 'bg-pink-500/20 text-pink-400 border-r-2 border-pink-400'
+              isActive(item.route, true)
+                ? 'bg-blue-500/20 text-blue-400 border-r-2 border-blue-400'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800',
             ]"
             @click="mobileOpen = false"
@@ -222,7 +217,7 @@ async function changePassword() {
         </div>
 
         <div class="flex items-center gap-4">
-          <NuxtLink to="/" target="_blank" class="text-gray-500 hover:text-pink-500 transition-colors">
+          <NuxtLink to="/" target="_blank" class="text-gray-500 hover:text-blue-500 transition-colors">
             <i class="fas fa-external-link-alt" />
             <span class="hidden sm:inline ml-1 text-sm">访问前台</span>
           </NuxtLink>
@@ -232,7 +227,7 @@ async function changePassword() {
               class="flex items-center gap-2 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
               @click="showUserMenu = !showUserMenu"
             >
-              <div class="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+              <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
                 {{ admin?.name?.[0] || 'A' }}
               </div>
               <span class="hidden sm:inline text-sm text-gray-700">{{ admin?.name }}</span>
@@ -284,15 +279,15 @@ async function changePassword() {
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">旧密码</label>
-              <input v-model="pwdForm.oldPassword" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" placeholder="请输入旧密码" />
+              <input v-model="pwdForm.oldPassword" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" placeholder="请输入旧密码" />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">新密码</label>
-              <input v-model="pwdForm.newPassword" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" placeholder="请输入新密码（至少6位）" />
+              <input v-model="pwdForm.newPassword" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" placeholder="请输入新密码（至少6位）" />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">确认新密码</label>
-              <input v-model="pwdForm.confirmPassword" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-pink-400 outline-none" placeholder="请再次输入新密码" />
+              <input v-model="pwdForm.confirmPassword" type="password" class="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-400 outline-none" placeholder="请再次输入新密码" />
             </div>
             <div v-if="pwdError" class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
               <i class="fas fa-exclamation-circle mr-1" />{{ pwdError }}
@@ -300,7 +295,7 @@ async function changePassword() {
           </div>
           <div class="flex justify-end gap-3 mt-6">
             <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200" @click="showPasswordModal = false">取消</button>
-            <button class="px-4 py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600 disabled:opacity-50" :disabled="pwdLoading" @click="changePassword">
+            <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50" :disabled="pwdLoading" @click="changePassword">
               <i v-if="pwdLoading" class="fas fa-spinner fa-spin mr-1" />
               {{ pwdLoading ? '修改中...' : '确认修改' }}
             </button>
@@ -311,6 +306,9 @@ async function changePassword() {
 
     <!-- Click outside to close dropdown -->
     <div v-if="showUserMenu" class="fixed inset-0 z-[55]" @click="showUserMenu = false" />
+
+    <!-- Toast 消息提示 -->
+    <Toast />
   </div>
 </template>
 

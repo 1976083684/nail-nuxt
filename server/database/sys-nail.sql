@@ -99,14 +99,14 @@ INSERT IGNORE INTO sys_menus (id, parent_id, name, perm_key, icon, route, sort_o
 (3, NULL, '服务管理',  'services',      'fas fa-spa',            '/admin/services',        3),
 (4, NULL, '美甲师管理','artists',       'fas fa-user-tie',       '/admin/artists',         4),
 (5, NULL, '画廊管理',  'gallery',       'fas fa-images',         '/admin/gallery',         5),
-(6, NULL, '用户管理',  'users',         'fas fa-users',          '/admin/users',           6),
-(7, NULL, '系统设置',  'settings',      'fas fa-cog',            '/admin/settings',        7),
-(8, 7,   '基础配置',  'settings.basic', 'fas fa-sliders-h',     '/admin/settings/basic',  1),
-(9, 7,   '短信配置',  'settings.sms',   'fas fa-sms',           '/admin/settings/sms',    2),
-(10, 7,  '菜单管理',  'settings.menus', 'fas fa-bars',           '/admin/settings/menus',  3),
-(11, 7,  '管理员账号','settings.admins','fas fa-user-shield',    '/admin/settings/admins', 4),
-(12, 7,  '内容管理',  'settings.content','fas fa-file-alt',     '/admin/settings/content', 5),
-(13, NULL, '排班管理', 'schedules',     'fas fa-calendar-alt', '/admin/schedules',      8),
+(13, NULL, '排班管理', 'schedules',     'fas fa-calendar-alt', '/admin/schedules',        6),
+(6, NULL, '用户管理',  'users',         'fas fa-users',          '/admin/users',           7),
+(7, NULL, '系统设置',  'settings',      'fas fa-cog',            '/admin/settings',        8),
+(12, 7,  '内容管理',  'settings.content','fas fa-file-alt',     '/admin/settings/content', 1),
+(8, 7,   '基础配置',  'settings.basic', 'fas fa-sliders-h',     '/admin/settings/basic',  2),
+(9, 7,   '短信配置',  'settings.sms',   'fas fa-sms',           '/admin/settings/sms',    3),
+(10, 7,  '菜单管理',  'settings.menus', 'fas fa-bars',           '/admin/settings/menus',  4),
+(11, 7,  '管理员账号','settings.admins','fas fa-user-shield',    '/admin/settings/admins', 5),
 (14, 13,   '排班总览', 'schedules.overview','fas fa-calendar-day', '/admin/schedules',      1),
 (15, 13,   '新增排班', 'schedules.create', 'fas fa-plus-circle',  '/admin/schedules/create', 2),
 (16, 13,   '排班记录', 'schedules.records','fas fa-list-alt',     '/admin/schedules/records', 3);
@@ -119,7 +119,7 @@ INSERT IGNORE INTO sys_site_settings (setting_key, setting_value, description) V
 ('business_hours_start', '10:00', '营业开始时间'),
 ('business_hours_end', '19:00', '营业结束时间'),
 ('slot_duration', '30', '时间段间隔（分钟）'),
-('booking_fee', '5', '预约费用（元）'),
+('booking_fee', '0.01', '预约费用（元）'),
 ('cancel_hours', '6', '预约时间N小时内不可取消');
 
 -- 默认短信配置（阿里云）
