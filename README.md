@@ -222,9 +222,12 @@ pm2 start .output/server/index.mjs --name luxe-nail
 
 # 方式二：PM2 启动时通过环境变量指定（适合多实例部署）
 PORT=8080 pm2 start .output/server/index.mjs --name luxe-nail
+
+# 方式三：通过命令行参数指定端口
+pm2 start .output/server/index.mjs --name luxe-nail -- --port 8080
 ```
 
-> **原理**：Nuxt/Nitro 会自动读取 `PORT` 环境变量来决定监听端口，无需额外传递命令行参数。
+> **原理**：Nuxt/Nitro 会读取 `PORT` 环境变量来决定监听端口；方式三则是通过 `--port` 参数直接传给应用。
 
 ### 4. 使用 PM2 进程管理
 
