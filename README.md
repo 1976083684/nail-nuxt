@@ -55,7 +55,7 @@
 npm install
 ```
 
-### 环境变量配置
+### 环境变量配置（仅本地开发）
 
 复制 `.env.example` 为 `.env`，填入本地配置：
 
@@ -193,15 +193,11 @@ sudo apt-get install nginx
 
 ```bash
 # 克隆代码
-git clone <仓库地址> /var/www/luxe-nail
-cd /var/www/luxe-nail
+git clone <仓库地址> /srv/nail-nail
+cd /srv/nail-nail
 
 # 安装依赖
 npm install
-
-# 配置环境变量
-cp .env.example .env
-vi .env  # 填入生产环境配置
 
 # 初始化数据库（首次部署，init.sql 会自动创建 luxe_nail 数据库）
 mysql -u root -p < server/database/init.sql
@@ -210,41 +206,30 @@ mysql -u root -p < server/database/init.sql
 npm run build
 ```
 
-### 3. 启动端口配置
+> **注意**：生产环境不需要配置 `.env` 文件，环境变量通过 PM2 启动命令传入（见下方第 3 步）。
 
-应用默认监听 **3000** 端口，可通过以下方式修改：
+### 3. 启动应用
+
+应用默认监听 **3000** 端口，通过环境变量指定端口和工作目录：
 
 ```bash
-# 方式一：在 .env 文件中配置（推荐，持久化）
-PORT=8080
-# 配置好后正常启动即可，PM2 会自动读取 .env 中的环境变量
-pm2 start .output/server/index.mjs --name luxe-nail
-
-# 方式二：PM2 启动时通过环境变量指定（适合多实例部署）
-PORT=8080 pm2 start .output/server/index.mjs --name luxe-nail
-
-# 方式三：通过命令行参数指定端口
-pm2 start .output/server/index.mjs --name luxe-nail -- --port 8080
+PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail --cwd /srv/nail-nail
 ```
 
-> **原理**：Nuxt/Nitro 会读取 `PORT` 环境变量来决定监听端口；方式三则是通过 `--port` 参数直接传给应用。
+> **注意**：生产构建的 Nitro 不会自动读取 `.env` 文件，必须通过 PM2 启动命令的环境变量传入配置。
 
-如果已用默认配置启动，需要修改端口，先删除旧进程再重新启动：
+设置开机自启：
+
+```bash
+pm2 startup
+pm2 save
+```
+
+如果需要修改端口，先删除旧进程再重新启动：
 
 ```bash
 pm2 delete luxe-nail
-# 然后用上述任一方式重新启动
-```
-
-### 4. 使用 PM2 进程管理
-
-```bash
-# 启动应用（默认 3000 端口）
-pm2 start .output/server/index.mjs --name luxe-nail
-
-# 设置开机自启
-pm2 startup
-pm2 save
+PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail --cwd /srv/nail-nail
 ```
 
 ### 5. Nginx 反向代理
@@ -257,7 +242,7 @@ server {
     server_name your-domain.com;  # 替换为你的域名或 IP
 
     location / {
-        proxy_pass http://127.0.0.1:3000;  # 与应用端口一致
+        proxy_pass http://127.0.0.1:3003;  # 与应用端口一致
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -301,7 +286,7 @@ sudo certbot renew --dry-run
 当代码有更新时，按以下步骤在服务器上操作：
 
 ```bash
-cd /var/www/luxe-nail
+cd /srv/nail-nail
 
 # 1. 拉取最新代码
 git pull origin master
@@ -312,7 +297,7 @@ npm install
 # 3. 重新构建
 npm run build
 
-# 4. 重启应用
+# 4. 重启应用（PM2 会保留启动时的环境变量）
 pm2 restart luxe-nail
 ```
 
@@ -323,6 +308,8 @@ pm2 restart luxe-nail
 ```bash
 #!/bin/bash
 set -e
+
+cd /srv/nail-nail
 
 echo ">>> 拉取最新代码..."
 git pull origin master
@@ -393,9 +380,9 @@ mysql -u root -p -e "
 
 ```bash
 # 查看端口占用
-sudo lsof -i :3000
+sudo lsof -i :3003
 # 或
-sudo netstat -tlnp | grep 3000
+sudo netstat -tlnp | grep 3003
 
 # 查看磁盘空间
 df -h
