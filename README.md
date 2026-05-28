@@ -213,23 +213,16 @@ npm run build
 应用默认监听 **3000** 端口，通过环境变量指定端口和工作目录：
 
 ```bash
-PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail --cwd /srv/nail-nail
+PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail
 ```
 
 > **注意**：生产构建的 Nitro 不会自动读取 `.env` 文件，必须通过 PM2 启动命令的环境变量传入配置。
-
-设置开机自启：
-
-```bash
-pm2 startup
-pm2 save
-```
 
 如果需要修改端口，先删除旧进程再重新启动：
 
 ```bash
 pm2 delete luxe-nail
-PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail --cwd /srv/nail-nail
+PORT=3003 pm2 start .output/server/index.mjs --name luxe-nail
 ```
 
 ### 5. Nginx 反向代理
