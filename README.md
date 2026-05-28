@@ -217,6 +217,8 @@ npm run build
 ```bash
 # 方式一：在 .env 文件中配置（推荐，持久化）
 PORT=8080
+# 配置好后正常启动即可，PM2 会自动读取 .env 中的环境变量
+pm2 start .output/server/index.mjs --name luxe-nail
 
 # 方式二：PM2 启动时通过环境变量指定（适合多实例部署）
 PORT=8080 pm2 start .output/server/index.mjs --name luxe-nail
