@@ -215,16 +215,14 @@ npm run build
 应用默认监听 **3000** 端口，可通过以下方式修改：
 
 ```bash
-# 方式一：环境变量（推荐）
-# 在 .env 文件中添加
+# 方式一：在 .env 文件中配置（推荐，持久化）
 PORT=8080
 
-# 方式二：PM2 启动时指定
-pm2 start .output/server/index.mjs --name luxe-nail -- --port 8080
-
-# 方式三：系统环境变量
+# 方式二：PM2 启动时通过环境变量指定（适合多实例部署）
 PORT=8080 pm2 start .output/server/index.mjs --name luxe-nail
 ```
+
+> **原理**：Nuxt/Nitro 会自动读取 `PORT` 环境变量来决定监听端口，无需额外传递命令行参数。
 
 ### 4. 使用 PM2 进程管理
 
