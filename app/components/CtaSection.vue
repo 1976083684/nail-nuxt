@@ -1,7 +1,21 @@
 <script setup lang="ts">
-const { openBooking } = useModal()
+const { openBooking, openLogin } = useModal()
 const { resetBooking } = useBooking()
+const { currentUser, loginCallback } = useAuth()
 const { get } = useSiteContent()
+
+function handleBooking() {
+  if (!currentUser.value) {
+    loginCallback.value = () => {
+      resetBooking()
+      openBooking()
+    }
+    openLogin()
+    return
+  }
+  resetBooking()
+  openBooking()
+}
 </script>
 
 <template>
@@ -12,7 +26,7 @@ const { get } = useSiteContent()
       <p class="mb-8 md:mb-10 text-sm md:text-lg" style="color: var(--text-muted)">
         {{ get('cta', 'cta_desc', '只需几分钟，即可预约专属你的美甲时光') }}
       </p>
-      <button class="btn-primary text-sm md:text-base px-10 py-3.5 md:px-12 md:py-4" @click="resetBooking(); openBooking()">
+      <button class="btn-primary text-sm md:text-base px-10 py-3.5 md:px-12 md:py-4" @click="handleBooking()">
         <i class="fa-solid fa-sparkles mr-2" />开始预约
       </button>
     </div>
