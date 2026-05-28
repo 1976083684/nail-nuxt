@@ -86,10 +86,10 @@ mysql -u root -p < server/database/init.sql
 **方式二：分步执行**
 
 ```bash
-# 1. 系统表（管理员账户、菜单、站点设置等）
+# 1. 系统表（会自动创建数据库，包含管理员账户、菜单、站点设置等）
 mysql -u root -p < server/database/sys-nail.sql
 
-# 2. 业务表（服务、美甲师、预约、画廊等）
+# 2. 业务表（服务、美甲师、预约、画廊等，需先执行第 1 步）
 mysql -u root -p < server/database/nail.sql
 ```
 
@@ -203,7 +203,7 @@ npm install
 cp .env.example .env
 vi .env  # 填入生产环境配置
 
-# 初始化数据库（首次部署）
+# 初始化数据库（首次部署，init.sql 会自动创建 luxe_nail 数据库）
 mysql -u root -p < server/database/init.sql
 
 # 生产构建
