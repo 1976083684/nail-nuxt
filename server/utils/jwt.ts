@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 
-const SECRET = 'luxe-nail-admin-secret-key-2024'
+const SECRET = useRuntimeConfig().jwtSecret || 'luxe-nail-admin-secret-key-2024'
 
 export interface AdminPayload {
   id: number

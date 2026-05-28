@@ -33,7 +33,8 @@ export default defineNuxtConfig({
     dbHost: 'localhost',
     dbPort: 3306,
     dbUser: 'root',
-    dbPassword: '123456',
+    dbPassword: '',
     dbName: 'luxe_nail',
+    jwtSecret: 'luxe-nail-admin-secret-key-2024',
   },
 })

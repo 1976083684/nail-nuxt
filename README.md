@@ -55,33 +55,45 @@
 npm install
 ```
 
+### 环境变量配置
+
+复制 `.env.example` 为 `.env`，填入本地配置：
+
+```bash
+cp .env.example .env
+```
+
+```env
+# 数据库配置
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_password_here
+DB_NAME=luxe_nail
+
+# JWT 密钥
+JWT_SECRET=your_jwt_secret_here
+```
+
 ### 数据库初始化
 
-按顺序执行两个 SQL 文件：
+**方式一：一键初始化（推荐）**
+
+```bash
+mysql -u root -p < server/database/init.sql
+```
+
+**方式二：分步执行**
 
 ```bash
 # 1. 系统表（管理员账户、菜单、站点设置等）
-mysql -u root -p luxe_nail < server/database/sys-nail.sql
+mysql -u root -p < server/database/sys-nail.sql
 
 # 2. 业务表（服务、美甲师、预约、画廊等）
-mysql -u root -p luxe_nail < server/database/nail.sql
+mysql -u root -p < server/database/nail.sql
 ```
 
 默认管理员账户：`admin` / `admin123`
-
-### 配置数据库连接
-
-编辑 `nuxt.config.ts` 中的 `runtimeConfig`：
-
-```ts
-runtimeConfig: {
-  dbHost: 'localhost',
-  dbPort: 3306,
-  dbUser: 'root',
-  dbPassword: '123456',
-  dbName: 'luxe_nail',
-}
-```
 
 ### 启动开发服务器
 
@@ -158,13 +170,96 @@ npm run postinstall  # 生成 Nuxt 类型声明
 - `nail_appointments` - 预约记录
 - `nail_artist_schedules` - 美甲师排班
 
+## Linux 服务器部署
+
+### 1. 环境准备
+
+```bash
+# 安装 Node.js 18+
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# 安装 MySQL 5.7+
+sudo apt-get install mysql-server
+```
+
+### 2. 部署应用
+
+```bash
+# 克隆代码
+git clone <仓库地址> /var/www/luxe-nail
+cd /var/www/luxe-nail
+
+# 安装依赖
+npm install
+
+# 配置环境变量
+cp .env.example .env
+vi .env  # 填入生产环境配置
+
+# 初始化数据库
+mysql -u root -p < server/database/init.sql
+
+# 生产构建
+npm run build
+```
+
+### 3. 使用 PM2 进程管理
+
+```bash
+# 安装 PM2
+npm install -g pm2
+
+# 启动应用
+pm2 start .output/server/index.mjs --name luxe-nail
+
+# 设置开机自启
+pm2 startup
+pm2 save
+
+# 常用命令
+pm2 status        # 查看状态
+pm2 logs luxe-nail  # 查看日志
+pm2 restart luxe-nail  # 重启
+```
+
+### 4. Nginx 反向代理
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 上传文件大小限制
+    client_max_body_size 10m;
+}
+```
+
+### 5. 配置 HTTPS（推荐）
+
+```bash
+# 安装 Certbot
+sudo apt-get install certbot python3-certbot-nginx
+
+# 申请证书
+sudo certbot --nginx -d your-domain.com
+```
+
 ## 生产部署注意事项
 
-- 将 JWT 密钥改为环境变量（当前硬编码在 `server/utils/jwt.ts`）
-- 将数据库密码改为环境变量（当前在 `nuxt.config.ts` 的 `runtimeConfig` 中）
+- 使用强随机字符串作为 `JWT_SECRET`
+- 数据库密码使用强密码，不要使用 root 账户
 - 短信验证码存储改为 Redis（当前使用内存存储）
-- 配置 HTTPS
 - 配置文件上传大小限制
+- 定期备份数据库
 
 ## 开源协议
 
