@@ -30,11 +30,11 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    dbHost: 'localhost',
-    dbPort: 3306,
-    dbUser: 'root',
-    dbPassword: '',
-    dbName: 'luxe_nail',
-    jwtSecret: 'luxe-nail-admin-secret-key-2024',
+    dbHost: process.env.DB_HOST || 'localhost',
+    dbPort: process.env.DB_PORT || 3306,
+    dbUser: process.env.DB_USER || 'root',
+    dbPassword: process.env.DB_PASSWORD || '123456',
+    dbName: process.env.DB_NAME || 'luxe_nail',
+    jwtSecret: process.env.JWT_SECRET || 'luxe-nail-admin-secret-key-2024',
   },
 })
