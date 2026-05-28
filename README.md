@@ -181,6 +181,12 @@ sudo apt-get install -y nodejs
 
 # 安装 MySQL 5.7+
 sudo apt-get install mysql-server
+
+# 安装 PM2（进程管理）
+npm install -g pm2
+
+# 安装 Nginx（反向代理）
+sudo apt-get install nginx
 ```
 
 ### 2. 部署应用
@@ -197,45 +203,59 @@ npm install
 cp .env.example .env
 vi .env  # 填入生产环境配置
 
-# 初始化数据库
+# 初始化数据库（首次部署）
 mysql -u root -p < server/database/init.sql
 
 # 生产构建
 npm run build
 ```
 
-### 3. 使用 PM2 进程管理
+### 3. 启动端口配置
+
+应用默认监听 **3000** 端口，可通过以下方式修改：
 
 ```bash
-# 安装 PM2
-npm install -g pm2
+# 方式一：环境变量（推荐）
+# 在 .env 文件中添加
+PORT=8080
 
-# 启动应用
+# 方式二：PM2 启动时指定
+pm2 start .output/server/index.mjs --name luxe-nail -- --port 8080
+
+# 方式三：系统环境变量
+PORT=8080 pm2 start .output/server/index.mjs --name luxe-nail
+```
+
+### 4. 使用 PM2 进程管理
+
+```bash
+# 启动应用（默认 3000 端口）
 pm2 start .output/server/index.mjs --name luxe-nail
 
 # 设置开机自启
 pm2 startup
 pm2 save
-
-# 常用命令
-pm2 status        # 查看状态
-pm2 logs luxe-nail  # 查看日志
-pm2 restart luxe-nail  # 重启
 ```
 
-### 4. Nginx 反向代理
+### 5. Nginx 反向代理
+
+创建配置文件 `/etc/nginx/sites-available/luxe-nail`：
 
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;
+    server_name your-domain.com;  # 替换为你的域名或 IP
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3000;  # 与应用端口一致
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
     }
 
     # 上传文件大小限制
@@ -243,7 +263,15 @@ server {
 }
 ```
 
-### 5. 配置 HTTPS（推荐）
+启用配置并重启 Nginx：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/luxe-nail /etc/nginx/sites-enabled/
+sudo nginx -t          # 测试配置
+sudo systemctl restart nginx
+```
+
+### 6. 配置 HTTPS（推荐）
 
 ```bash
 # 安装 Certbot
@@ -251,7 +279,141 @@ sudo apt-get install certbot python3-certbot-nginx
 
 # 申请证书
 sudo certbot --nginx -d your-domain.com
+
+# 证书自动续期测试
+sudo certbot renew --dry-run
 ```
+
+---
+
+## 后续更新部署
+
+当代码有更新时，按以下步骤在服务器上操作：
+
+```bash
+cd /var/www/luxe-nail
+
+# 1. 拉取最新代码
+git pull origin master
+
+# 2. 安装新增依赖（如有）
+npm install
+
+# 3. 重新构建
+npm run build
+
+# 4. 重启应用
+pm2 restart luxe-nail
+```
+
+> **提示**：如果数据库表结构有变更，需手动执行对应的 SQL 迁移脚本后再重启。
+
+一键更新脚本（可保存为 `deploy.sh`）：
+
+```bash
+#!/bin/bash
+set -e
+
+echo ">>> 拉取最新代码..."
+git pull origin master
+
+echo ">>> 安装依赖..."
+npm install
+
+echo ">>> 构建项目..."
+npm run build
+
+echo ">>> 重启应用..."
+pm2 restart luxe-nail
+
+echo ">>> 部署完成！"
+```
+
+---
+
+## 日常运维常用命令
+
+### PM2 进程管理
+
+```bash
+pm2 status                  # 查看所有进程状态
+pm2 logs luxe-nail          # 查看实时日志
+pm2 logs luxe-nail --lines 100  # 查看最近 100 行日志
+pm2 restart luxe-nail       # 重启应用
+pm2 stop luxe-nail          # 停止应用
+pm2 delete luxe-nail        # 删除进程
+pm2 monit                   # 实时监控（CPU/内存/日志）
+pm2 save                    # 保存当前进程列表
+pm2 startup                 # 生成开机自启命令
+```
+
+### Nginx 相关
+
+```bash
+sudo nginx -t                       # 测试配置文件语法
+sudo systemctl restart nginx        # 重启 Nginx
+sudo systemctl reload nginx         # 重载配置（不中断连接）
+sudo systemctl status nginx         # 查看 Nginx 状态
+sudo tail -f /var/log/nginx/error.log   # 查看错误日志
+sudo tail -f /var/log/nginx/access.log  # 查看访问日志
+```
+
+### MySQL 数据库
+
+```bash
+# 登录数据库
+mysql -u root -p
+
+# 备份数据库
+mysqldump -u root -p luxe_nail > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# 恢复数据库
+mysql -u root -p luxe_nail < backup_file.sql
+
+# 查看数据库大小
+mysql -u root -p -e "
+  SELECT table_schema AS 'Database',
+  ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'Size (MB)'
+  FROM information_schema.tables
+  WHERE table_schema = 'luxe_nail'
+  GROUP BY table_schema;"
+```
+
+### 系统监控
+
+```bash
+# 查看端口占用
+sudo lsof -i :3000
+# 或
+sudo netstat -tlnp | grep 3000
+
+# 查看磁盘空间
+df -h
+
+# 查看目录大小
+du -sh /var/www/luxe-nail
+
+# 查看系统资源
+top
+htop  # 需安装: sudo apt install htop
+```
+
+### 日志排查
+
+```bash
+# PM2 日志文件位置
+~/.pm2/logs/luxe-nail-out.log    # 标准输出
+~/.pm2/logs/luxe-nail-error.log  # 错误输出
+
+# 实时跟踪日志
+tail -f ~/.pm2/logs/luxe-nail-error.log
+
+# Nginx 日志
+/var/log/nginx/access.log
+/var/log/nginx/error.log
+```
+
+---
 
 ## 生产部署注意事项
 
@@ -259,7 +421,10 @@ sudo certbot --nginx -d your-domain.com
 - 数据库密码使用强密码，不要使用 root 账户
 - 短信验证码存储改为 Redis（当前使用内存存储）
 - 配置文件上传大小限制
-- 定期备份数据库
+- 定期备份数据库（建议设置定时任务 `crontab -e`）
+- 上传文件目录 `public/uploads/` 需确保写入权限
+
+---
 
 ## 开源协议
 
