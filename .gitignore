@@ -23,3 +23,10 @@ test-sms.mjs
 .env
 .env.*
 !.env.example
+
+# Tools
+.codegraph/
+.playwright-mcp/
+
+# Uploads
+public/uploads/
